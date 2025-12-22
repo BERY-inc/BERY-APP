@@ -30,6 +30,7 @@ use App\Mail\CustomerRegistration;
 use App\Mail\PlaceOrder;
 use App\Models\AddOn;
 use App\Models\SurgePrice;
+use App\Services\MarketBeryService;
 use Carbon\Carbon;
 
 trait PlaceNewOrder
@@ -557,6 +558,14 @@ trait PlaceNewOrder
             DB::commit();
 
             $this->sentOrderPlaceNotification($request, $order, $store);
+            
+            // Send order to Market.bery.in
+            try {
+                $marketBeryService = new MarketBeryService();
+                $marketBeryService->sendOrder($order);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('MarketBery Integration Error: ' . $e->getMessage());
+            }
 
             return response()->json([
                 'message' => translate('messages.order_placed_successfully'),
