@@ -21,12 +21,10 @@ interface MarketplaceProps {
 }
 
 export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount = 0 }: MarketplaceProps) {
-  const [selectedTab, setSelectedTab] = useState<"products" | "services">("products");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(6);
   const [products, setProducts] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,9 +50,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   });
   // NEW: Dynamic product categories based on fetched products
   const [dynamicProductCategories, setDynamicProductCategories] = useState<{ id: string; name: string }[]>([{ id: 'all', name: 'All' }]);
-
-  // Dynamic service categories based on fetched services
-  const [dynamicServiceCategories, setDynamicServiceCategories] = useState<{ id: string; name: string }[]>([{ id: 'all', name: 'All' }]);
 
   // Featured stores state
   const [featuredStores, setFeaturedStores] = useState<any[]>([]);
@@ -248,90 +243,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
 
         // NEW: Initialize selected store from list if not set - REMOVED to allow "All Stores" view
         // if (!selectedStoreId && Array.isArray(storeData) && storeData.length > 0) { ... }
-
-        const serviceData = [
-          {
-            id: 1,
-            name: "Logo Design & Branding",
-            price: "From ₿ 15",
-            usdPrice: "From $100",
-            rating: 5.0,
-            reviews: 342,
-            category: "design",
-            seller: "DesignMaster",
-            deliveryDays: 3,
-            icon: Palette,
-          },
-          {
-            id: 2,
-            name: "Mobile App Development",
-            price: "From ₿ 150",
-            usdPrice: "From $1,000",
-            rating: 4.9,
-            reviews: 156,
-            category: "development",
-            seller: "CodePro",
-            deliveryDays: 14,
-            icon: Smartphone,
-          },
-          {
-            id: 3,
-            name: "Video Editing Services",
-            price: "From ₿ 22",
-            usdPrice: "From $150",
-            rating: 4.8,
-            reviews: 234,
-            category: "marketing",
-            seller: "VideoExpert",
-            deliveryDays: 5,
-            icon: Video,
-          },
-          {
-            id: 4,
-            name: "Website Development",
-            price: "From ₿ 75",
-            usdPrice: "From $500",
-            rating: 5.0,
-            reviews: 289,
-            category: "development",
-            seller: "WebWizard",
-            deliveryDays: 7,
-            icon: Code,
-          },
-          {
-            id: 5,
-            name: "Social Media Marketing",
-            price: "From ₿ 30",
-            usdPrice: "From $200",
-            rating: 4.7,
-            reviews: 445,
-            category: "marketing",
-            seller: "MarketGuru",
-            deliveryDays: 30,
-            icon: Zap,
-          },
-          {
-            id: 6,
-            name: "Music Production",
-            price: "From ₿ 45",
-            usdPrice: "From $300",
-            rating: 4.9,
-            reviews: 167,
-            category: "design",
-            seller: "SoundStudio",
-            deliveryDays: 10,
-            icon: Music,
-          },
-        ];
-
-        setServices(serviceData);
-
-        // Populate dynamic service categories from service data
-        const uniqueServiceCats = Array.from(new Set(serviceData.map((s: any) => s.category))).filter(Boolean);
-        setDynamicServiceCategories([
-          { id: 'all', name: 'All' },
-          ...uniqueServiceCats.map(c => ({ id: c, name: c.charAt(0).toUpperCase() + c.slice(1) }))
-        ]);
       } catch (error) {
         console.error('Error fetching data:', error);
         setProducts([]);
@@ -452,12 +363,10 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
 
   // Using dynamic categories from API data instead of hardcoded values
   // Filter out 'all' and 'uncategorized' from product categories
-  const filteredProductCategories = selectedTab === "products"
-    ? dynamicProductCategories.filter(cat => cat.id !== 'all' && cat.id.toLowerCase() !== 'uncategorized')
-    : dynamicProductCategories;
+  const filteredProductCategories = dynamicProductCategories.filter(cat => cat.id !== 'all' && cat.id.toLowerCase() !== 'uncategorized');
 
-  const currentCategories = selectedTab === "products" ? filteredProductCategories : dynamicServiceCategories;
-  const currentItems = selectedTab === "products" ? products : services;
+  const currentCategories = filteredProductCategories;
+  const currentItems = products;
 
   let filteredItems = selectedCategory === "all"
     ? currentItems
@@ -479,28 +388,18 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   const handleItemClick = (item: any) => {
     const enhancedItem = {
       ...item,
-      description: selectedTab === "products"
-        ? `High-quality ${item.name} from ${item.seller}. This product offers exceptional value and performance, backed by our buyer protection guarantee.`
-        : `Professional ${item.name} service provided by ${item.seller}. Delivered with attention to detail and quality assurance.`,
-      features: selectedTab === "products"
-        ? [
-          "Premium quality materials",
-          "1-year warranty included",
-          "Free shipping available",
-          "Buyer protection guarantee",
-          "Authentic product verification"
-        ]
-        : [
-          "Expert professional service",
-          `${(item as any).deliveryDays}-day delivery`,
-          "Unlimited revisions",
-          "Money-back guarantee",
-          "24/7 customer support"
-        ],
-      images: selectedTab === "products" ? [item.image, item.image, item.image] : []
+      description: `High-quality ${item.name} from ${item.seller}. This product offers exceptional value and performance, backed by our buyer protection guarantee.`,
+      features: [
+        "Premium quality materials",
+        "1-year warranty included",
+        "Free shipping available",
+        "Buyer protection guarantee",
+        "Authentic product verification"
+      ],
+      images: [item.image, item.image, item.image]
     };
     try { Haptics.notification({ type: NotificationType.Success }); } catch { }
-    onProductClick(enhancedItem, selectedTab === "services");
+    onProductClick(enhancedItem, false);
   };
 
   return (
@@ -604,7 +503,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search products & services..."
+            placeholder="Search products..."
             className="pl-12 bg-white/10 border-white/20 text-white placeholder:text-blue-200/50 h-12 rounded-xl"
           />
         </div>
@@ -612,108 +511,61 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
 
       {/* Content */}
       <div className="px-5 -mt-2">
-        {/* Tabs */}
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={() => {
-              setSelectedTab("products");
-              setSelectedCategory("all");
-            }}
-            className={`flex-1 py-3 rounded-xl text-sm transition-all ${selectedTab === "products"
-              ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/30'
-              : 'bg-[#1a1a2e] text-slate-300 border border-slate-700/40'
-              }`}
-            style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
-          >
-            <ShoppingBag className="w-4 h-4 inline mr-2" />
-            Products
-          </button>
-          <button
-            onClick={() => {
-              setSelectedTab("services");
-              setSelectedCategory("all");
-            }}
-            className={`flex-1 py-3 rounded-xl text-sm transition-all ${selectedTab === "services"
-              ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/30'
-              : 'bg-[#1a1a2e] text-slate-300 border border-slate-700/40'
-              }`}
-            style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
-          >
-            <Briefcase className="w-4 h-4 inline mr-2" />
-            Services
-          </button>
-        </div>
-
-        {/* Back to All Stores Button */}
-        {selectedStoreId && (
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setSelectedStoreId(null);
-                try { localStorage.removeItem('storeId'); } catch { }
-              }}
-              className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back to All Stores</span>
-            </button>
-          </div>
-        )}
 
         {/* Module Selector - Grid Design like Categories (Products Only) */}
-        {modules.length > 0 && selectedTab === "products" && (
-          <div className="mb-5">
-            <div className="flex items-center justify-between mb-3">
+        {modules.length > 0 && (
+          <div className="mb-2 mt-6">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-white font-bold text-base">Select Module</h3>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {modules.map(module => {
+              {modules.map((module, index) => {
                 // Map module names and types to icons and colors
                 const getModuleConfig = (moduleName: string, moduleType: string) => {
                   const name = moduleName.toLowerCase();
                   const type = moduleType.toLowerCase();
 
-                  // Grocery - Teal to Cyan (ShoppingCart icon)
+                  // Grocery - Teal to Cyan (ShoppingCart icon) - Green color
                   if (name.includes('grocery') || type.includes('grocery'))
-                    return { icon: ShoppingCart, color: 'from-teal-500 to-cyan-500' };
+                    return { icon: ShoppingCart, color: 'from-gray-600 to-gray-700', selectedColor: 'from-green-500 to-green-600' };
 
-                  // Food (general) - Lime to Green
+                  // Food (general) - Lime to Green (ShoppingBasket icon) - Blue color
                   if (name.includes('food'))
-                    return { icon: ShoppingBasket, color: 'from-lime-500 to-green-600' };
+                    return { icon: ShoppingBasket, color: 'from-gray-600 to-gray-700', selectedColor: 'from-blue-500 to-blue-600' };
 
-                  // Pharmacy - Red to Pink
+                  // Pharmacy - Red to Pink (Pill icon) - Pink color
                   if (name.includes('pharmacy') || name.includes('medicine') || name.includes('health') || type.includes('pharmacy'))
-                    return { icon: Pill, color: 'from-red-500 to-pink-500' };
+                    return { icon: Pill, color: 'from-gray-600 to-gray-700', selectedColor: 'from-pink-500 to-pink-600' };
 
-                  // Electronics - Blue to Cyan
+                  // Electronics - Blue to Cyan (Laptop icon) - White color
                   if (name.includes('electronic') || name.includes('tech') || type.includes('electronic'))
-                    return { icon: Laptop, color: 'from-blue-500 to-cyan-500' };
+                    return { icon: Laptop, color: 'from-gray-600 to-gray-700', selectedColor: 'from-white to-gray-100' };
 
-                  // Restaurant/Dining - Orange to Amber
+                  // Restaurant/Dining - Orange to Amber (Utensils icon) - Red color
                   if (name.includes('restaurant') || name.includes('dining') || type.includes('restaurant'))
-                    return { icon: Utensils, color: 'from-orange-500 to-amber-500' };
+                    return { icon: Utensils, color: 'from-gray-600 to-gray-700', selectedColor: 'from-red-500 to-red-600' };
 
-                  // Home/Furniture - Indigo to Purple
+                  // Home/Furniture - Indigo to Purple (Home icon) - Orange color
                   if (name.includes('home') || name.includes('furniture') || type.includes('home'))
-                    return { icon: Home, color: 'from-indigo-500 to-purple-500' };
+                    return { icon: Home, color: 'from-gray-600 to-gray-700', selectedColor: 'from-orange-500 to-orange-600' };
 
-                  // Parcel/Courier - Yellow to Orange
+                  // Parcel/Courier - Yellow to Orange (Truck icon) - Purple color
                   if (name.includes('parcel') || name.includes('courier') || name.includes('delivery') || type.includes('parcel'))
-                    return { icon: Truck, color: 'from-yellow-500 to-orange-500' };
+                    return { icon: Truck, color: 'from-gray-600 to-gray-700', selectedColor: 'from-purple-500 to-purple-600' };
 
-                  // Retail/Store - Purple to Pink
+                  // Retail/Store - Purple to Pink (StoreIcon icon) - Yellow color (changed from white)
                   if (name.includes('retail') || name.includes('store') || type.includes('retail') || type.includes('store'))
-                    return { icon: StoreIcon, color: 'from-purple-500 to-pink-500' };
+                    return { icon: StoreIcon, color: 'from-gray-600 to-gray-700', selectedColor: 'from-yellow-400 to-yellow-500' };
 
-                  // E-commerce/Shop - Pink to Rose
+                  // E-commerce/Shop - Pink to Rose (ShoppingBag icon) - Cyan color
                   if (name.includes('shop') || type.includes('e-commerce') || type.includes('ecommerce'))
-                    return { icon: ShoppingBag, color: 'from-pink-500 to-rose-500' };
+                    return { icon: ShoppingBag, color: 'from-gray-600 to-gray-700', selectedColor: 'from-cyan-500 to-cyan-600' };
 
-                  // Default - Cyan to Blue
-                  return { icon: Sparkles, color: 'from-cyan-500 to-blue-500' };
+                  // Default - Gray (neutral color for unselected state) - White color
+                  return { icon: Sparkles, color: 'from-gray-600 to-gray-700', selectedColor: 'from-white to-gray-100' };
                 };
 
-                const { icon: ModuleIcon, color } = getModuleConfig(module.module_name, module.module_type);
+                const { icon: ModuleIcon, color, selectedColor } = getModuleConfig(module.module_name, module.module_type);
                 const isSelected = selectedModuleId === module.id;
 
                 return (
@@ -726,8 +578,8 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
                       }`}
                   >
                     <div className={`w-14 h-14 mx-auto mb-2 rounded-2xl flex items-center justify-center shadow-lg ${isSelected
-                      ? `bg-gradient-to-br ${color}`
-                      : 'bg-slate-700'
+                      ? `bg-gradient-to-br ${selectedColor}`
+                      : `bg-gradient-to-br ${color}`
                       }`}>
                       <ModuleIcon className="w-7 h-7 text-white" />
                     </div>
@@ -781,12 +633,10 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
                   </Badge>
                 </div>
                 <h2 className="text-2xl text-white mb-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  {selectedTab === "products" ? "Hot Deals Today" : "Top Freelancers"}
+                  Hot Deals Today
                 </h2>
                 <p className="text-blue-100 text-sm mb-4">
-                  {selectedTab === "products"
-                    ? "Up to 50% off on selected items"
-                    : "Hire expert professionals with ₿ Bery"}
+                  Up to 50% off on selected items
                 </p>
                 <Button className="bg-white text-blue-700 hover:bg-blue-50">
                   Explore Now
@@ -798,7 +648,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
         )}
 
         {/* Featured Stores */}
-        {selectedTab === "products" && !selectedStoreId && featuredStores.length > 0 && (
+        {!selectedStoreId && featuredStores.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -875,13 +725,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
 
         {/* Items Grid */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-              {selectedTab === "products" ? "Products" : "Services"}
-            </h2>
-            <span className="text-xs text-slate-400">{filteredItems.length} items</span>
-          </div>
-
           {loading ? (
             <div className="flex flex-col items-center justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
@@ -908,35 +751,26 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
                     onClick={() => handleItemClick(item)}
                     className="p-3 bg-[#1a1a2e] border border-slate-700/40 hover:border-blue-600/40 transition-all cursor-pointer hover:shadow-lg hover:shadow-blue-600/10 active:scale-95 h-full flex flex-col"
                   >
-                    {selectedTab === "products" ? (
-                      <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center mb-3 overflow-hidden relative">
-                        {getImageUrl(item.image) ? (
-                          <img
-                            src={getImageUrl(item.image)!}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        <span className={`text-5xl absolute inset-0 flex items-center justify-center ${getImageUrl(item.image) ? 'hidden' : ''}`}>📦</span>
-                      </div>
-                    ) : (
-                      <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center mb-3">
-                        {(() => {
-                          const Icon = (item as any).icon;
-                          return Icon ? <Icon className="w-12 h-12 text-white" /> : <Briefcase className="w-12 h-12 text-white" />;
-                        })()}
-                      </div>
-                    )}
+                    <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center mb-3 overflow-hidden relative">
+                      {getImageUrl(item.image) ? (
+                        <img
+                          src={getImageUrl(item.image)!}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <span className={`text-5xl absolute inset-0 flex items-center justify-center ${getImageUrl(item.image) ? 'hidden' : ''}`}>📦</span>
+                    </div>
 
                     <div className="mb-2 flex-1">
                       <p className="text-sm text-white mb-1 line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
                         {item.name}
                       </p>
-                      <p className="text-xs text-slate-400/80">{item.seller}</p>
+                      <p className="text-xs text-slate-400">{item.seller}</p>
                     </div>
 
                     <div className="flex items-center gap-1 mb-2">
@@ -944,12 +778,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
                       <span className="text-xs text-slate-300">{item.rating}</span>
                       <span className="text-xs text-slate-500">({item.reviews})</span>
                     </div>
-
-                    {selectedTab === "services" && (item as any).deliveryDays && (
-                      <p className="text-xs text-slate-400 mb-2">
-                        {(item as any).deliveryDays} day delivery
-                      </p>
-                    )}
 
                     <div className="mt-auto">
                       <p className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>

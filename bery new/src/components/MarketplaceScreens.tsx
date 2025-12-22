@@ -3,7 +3,7 @@ import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import * as React from "react";
-import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles } from "lucide-react";
+import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User } from "lucide-react";
 import { storeService, itemService, wishlistService, orderService, metadataService } from '../services';
 
 interface ScreenProps {
@@ -2388,13 +2388,17 @@ export function FavouriteScreen({ onBack }: ScreenProps) {
   );
 }
 
-export function OrderScreen({ onBack, orders = [] as any[] }: ScreenProps & { orders?: any[] }) {
+export function OrderScreen({ onBack, orders = [] as any[], onNavigate }: ScreenProps & { orders?: any[]; onNavigate?: (screen: string) => void; }) {
   const [orderData, setOrderData] = React.useState<any[]>(orders);
   const [loading, setLoading] = React.useState(!orders || orders.length === 0);
 
   // Fetch orders from API if none provided
   React.useEffect(() => {
-    if (orders && orders.length > 0) return;
+    if (orders && orders.length > 0) {
+      setOrderData(orders);
+      setLoading(false);
+      return;
+    }
 
     const fetchOrders = async () => {
       try {
@@ -2414,6 +2418,15 @@ export function OrderScreen({ onBack, orders = [] as any[] }: ScreenProps & { or
 
   const displayOrders = orders && orders.length > 0 ? orders : orderData;
 
+  const handleOrderClick = (order: any) => {
+    // Store the selected order in localStorage so OrderDetailsScreen can access it
+    localStorage.setItem('selectedOrderId', order.id.toString());
+    // Navigate to order details screen
+    if (onNavigate) {
+      onNavigate('order-details');
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Orders" onBack={onBack} />
@@ -2428,13 +2441,18 @@ export function OrderScreen({ onBack, orders = [] as any[] }: ScreenProps & { or
           </Card>
         ) : (
           displayOrders.map((o: any) => (
-            <Card key={o.id} className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <Card 
+              key={o.id} 
+              className="p-4 bg-[#1a1a2e] border-slate-700/40 cursor-pointer hover:bg-[#1a1a2e]/80 transition-colors"
+              onClick={() => handleOrderClick(o)}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-sm text-white">Order {o.id}</span>
                 <Badge className="bg-green-500/20 text-green-300 border-0">{o.order_status || 'Confirmed'}</Badge>
               </div>
               <div className="mt-2 text-xs text-slate-400">Items: {o.order_items?.length || 0}</div>
               <div className="text-xs text-slate-400">Total: ${o.order_amount?.toFixed?.(2) || '0.00'}</div>
+              <div className="mt-2 text-xs text-blue-400">Tap to view details</div>
             </Card>
           ))
         )}
@@ -2446,17 +2464,62 @@ export function OrderScreen({ onBack, orders = [] as any[] }: ScreenProps & { or
 export function OrderDetailsScreen({ onBack }: ScreenProps) {
   const [order, setOrder] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const [trackingInfo, setTrackingInfo] = React.useState<any>(null);
+  const [showTracking, setShowTracking] = React.useState(false);
 
   // Fetch order details from API
   React.useEffect(() => {
     const fetchOrderDetails = async () => {
       try {
         setLoading(true);
-        // In a real implementation, we would get the order ID from route params
-        // For now, we'll fetch a sample order
-        const orderData = await orderService.getOrderHistory();
-        if (orderData.orders && orderData.orders.length > 0) {
-          setOrder(orderData.orders[0]);
+        
+        // Get the selected order ID from localStorage
+        const selectedOrderId = localStorage.getItem('selectedOrderId');
+        
+        if (selectedOrderId) {
+          // In a real implementation, we would fetch the specific order by ID
+          // For now, we'll fetch all orders and find the selected one
+          const orderData = await orderService.getOrderHistory();
+          if (orderData.orders && orderData.orders.length > 0) {
+            // Find the specific order by ID
+            const selectedOrder = orderData.orders.find((order: any) => order.id.toString() === selectedOrderId);
+            if (selectedOrder) {
+              setOrder(selectedOrder);
+              
+              // Mock tracking info - in a real app this would come from an API
+              setTrackingInfo({
+                status: selectedOrder.order_status || 'confirmed',
+                estimatedDelivery: '2023-06-15 14:30:00',
+                timeline: [
+                  { status: 'Order Placed', time: '2023-06-12 10:30:00', completed: true },
+                  { status: 'Order Confirmed', time: '2023-06-12 11:15:00', completed: true },
+                  { status: 'Preparing', time: '2023-06-12 12:00:00', completed: true },
+                  { status: 'Out for Delivery', time: '2023-06-12 14:30:00', completed: true },
+                  { status: 'Delivered', time: '', completed: false }
+                ]
+              });
+            }
+          }
+        } else {
+          // Fallback to the most recent order if no ID is stored
+          const orderData = await orderService.getOrderHistory();
+          if (orderData.orders && orderData.orders.length > 0) {
+            // Set the most recent order as the current order
+            setOrder(orderData.orders[0]);
+            
+            // Mock tracking info - in a real app this would come from an API
+            setTrackingInfo({
+              status: orderData.orders[0].order_status || 'confirmed',
+              estimatedDelivery: '2023-06-15 14:30:00',
+              timeline: [
+                { status: 'Order Placed', time: '2023-06-12 10:30:00', completed: true },
+                { status: 'Order Confirmed', time: '2023-06-12 11:15:00', completed: true },
+                { status: 'Preparing', time: '2023-06-12 12:00:00', completed: true },
+                { status: 'Out for Delivery', time: '2023-06-12 14:30:00', completed: true },
+                { status: 'Delivered', time: '', completed: false }
+              ]
+            });
+          }
         }
       } catch (error) {
         console.error('Error fetching order details:', error);
@@ -2468,6 +2531,21 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
     fetchOrderDetails();
   }, []);
 
+  const toggleTracking = () => {
+    setShowTracking(!showTracking);
+  };
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return `$${amount.toFixed(2)}`;
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Order Details" onBack={onBack} />
@@ -2478,27 +2556,218 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
           </Card>
         ) : order ? (
           <div className="space-y-4">
+            {/* Order Summary */}
             <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-white">Order #{order.id}</span>
-                <Badge className="bg-blue-500/20 text-blue-300 border-0">{order.order_status || 'Confirmed'}</Badge>
+                <Badge className="bg-blue-500/20 text-blue-300 border-0">
+                  {order.order_status?.replace('_', ' ') || 'Confirmed'}
+                </Badge>
               </div>
-              <div className="mt-3 text-xs text-slate-400">
-                <p>Placed on: {new Date(order.created_at).toLocaleDateString()}</p>
+              <div className="mt-3 text-xs text-slate-400 space-y-1">
+                <p>Placed on: {formatDate(order.created_at)}</p>
                 <p>Total items: {order.order_items?.length || 0}</p>
-                <p className="text-white font-semibold mt-1">Total: ${order.order_amount?.toFixed(2) || '0.00'}</p>
+                <p className="text-white font-semibold mt-1">Total: {formatCurrency(order.order_amount || 0)}</p>
+                {order.address && <p>Delivery to: {order.address}</p>}
+              </div>
+              
+              {/* Tracking Button */}
+              <Button 
+                onClick={toggleTracking}
+                variant="outline" 
+                className="w-full mt-3 bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+              >
+                {showTracking ? 'Hide Tracking' : 'Track Order'}
+              </Button>
+            </Card>
+
+            {/* Order Tracking Section */}
+            {showTracking && trackingInfo && (
+              <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+                <h3 className="text-white font-semibold text-sm mb-3">Order Tracking</h3>
+                
+                {/* Estimated Delivery */}
+                <div className="mb-4 p-3 bg-blue-500/10 rounded-lg">
+                  <p className="text-xs text-slate-400">Estimated Delivery</p>
+                  <p className="text-sm text-white">{formatDate(trackingInfo.estimatedDelivery)}</p>
+                </div>
+                
+                {/* Tracking Timeline */}
+                <div className="space-y-3">
+                  {trackingInfo.timeline.map((step: any, index: number) => (
+                    <div key={index} className="flex items-start">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 mt-0.5 ${
+                        step.completed 
+                          ? 'bg-green-500' 
+                          : 'bg-slate-700'
+                      }`}>
+                        {step.completed ? (
+                          <Check className="w-4 h-4 text-white" />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                        )}
+                      </div>
+                      <div className="flex-1 pb-3 border-l border-slate-700/50 pl-3 ml-2.5">
+                        <p className={`text-sm ${
+                          step.completed ? 'text-white' : 'text-slate-400'
+                        }`}>
+                          {step.status}
+                        </p>
+                        {step.time && (
+                          <p className="text-xs text-slate-500">{formatDate(step.time)}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Items List */}
+            <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+              <h3 className="text-white font-semibold text-sm mb-3">Items Purchased</h3>
+              <div className="space-y-3">
+                {order.order_items?.map((item: any) => (
+                  <div key={item.id} className="flex items-center gap-3 p-3 bg-[#0f0f1a] rounded-lg">
+                    {/* Item Image */}
+                    {item.item?.image ? (
+                      <div className="w-12 h-12 rounded-md bg-slate-700 flex items-center justify-center">
+                        <img 
+                          src={item.item.image} 
+                          alt={item.item.name || item.item_details} 
+                          className="w-10 h-10 object-cover rounded"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-md bg-slate-700 flex items-center justify-center">
+                        <Package className="w-6 h-6 text-slate-400" />
+                      </div>
+                    )}
+                    
+                    {/* Item Details */}
+                    <div className="flex-1">
+                      <h4 className="text-sm text-white font-medium">
+                        {item.item?.name || item.item_details || 'Unknown Item'}
+                      </h4>
+                      <div className="flex items-center justify-between mt-1">
+                        <div>
+                          <p className="text-xs text-slate-400">Qty: {item.quantity || 1}</p>
+                          {item.discount_on_item > 0 && (
+                            <p className="text-xs text-red-400 line-through">
+                              {formatCurrency((item.price + item.discount_on_item) / item.quantity)}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-sm text-white font-semibold">
+                          {formatCurrency(item.price || 0)}
+                        </p>
+                      </div>
+                      
+                      {/* Item Price Breakdown */}
+                      <div className="mt-2 pt-2 border-t border-slate-700/50">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-400">Price:</span>
+                          <span className="text-slate-300">
+                            {formatCurrency((item.price - item.tax_amount) / item.quantity)} × {item.quantity}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-400">Tax:</span>
+                          <span className="text-slate-300">
+                            {formatCurrency(item.tax_amount / item.quantity)} × {item.quantity}
+                          </span>
+                        </div>
+                        {item.discount_on_item > 0 && (
+                          <div className="flex justify-between text-xs text-red-400">
+                            <span>Discount:</span>
+                            <span>-{formatCurrency(item.discount_on_item)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Order Totals */}
+              <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-300">Subtotal:</span>
+                  <span className="text-white">
+                    {formatCurrency((order.order_amount - order.total_tax_amount) || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-300">Tax:</span>
+                  <span className="text-white">{formatCurrency(order.total_tax_amount || 0)}</span>
+                </div>
+                {order.coupon_discount_amount > 0 && (
+                  <div className="flex justify-between text-sm text-red-400">
+                    <span>Discount:</span>
+                    <span>-{formatCurrency(order.coupon_discount_amount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-semibold mt-2 pt-2 border-t border-slate-700/50">
+                  <span className="text-white">Total:</span>
+                  <span className="text-white">{formatCurrency(order.order_amount || 0)}</span>
+                </div>
               </div>
             </Card>
 
+            {/* Delivery Information */}
             <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
-              <h3 className="text-white font-semibold text-sm mb-2">Items</h3>
-              <div className="space-y-2">
-                {order.order_items?.map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300">{item.item_details || 'Item'}</span>
-                    <span className="text-white">${item.price?.toFixed(2) || '0.00'}</span>
+              <h3 className="text-white font-semibold text-sm mb-3">Delivery Information</h3>
+              <div className="text-xs text-slate-400 space-y-2">
+                <div className="flex items-start">
+                  <MapPin className="w-4 h-4 text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-white text-sm">Delivery Address</p>
+                    <p>{order.address || 'N/A'}</p>
                   </div>
-                ))}
+                </div>
+                <div className="flex items-start">
+                  <User className="w-4 h-4 text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-white text-sm">Contact Person</p>
+                    <p>{order.contact_person_name || 'N/A'}</p>
+                    <p>{order.contact_person_number || 'N/A'}</p>
+                    <p>{order.contact_person_email || 'N/A'}</p>
+                  </div>
+                </div>
+                {order.distance && (
+                  <div className="flex items-start">
+                    <Truck className="w-4 h-4 text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-white text-sm">Distance</p>
+                      <p>{order.distance.toFixed(2)} miles</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Payment Information */}
+            <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+              <h3 className="text-white font-semibold text-sm mb-3">Payment Information</h3>
+              <div className="text-xs text-slate-400 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-300">Payment Method:</span>
+                  <span className="text-white capitalize">
+                    {order.payment_method?.replace('_', ' ') || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-300">Payment Status:</span>
+                  <span className="text-white capitalize">
+                    {order.payment_status?.replace('_', ' ') || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-300">Order Type:</span>
+                  <span className="text-white capitalize">
+                    {order.order_type?.replace('_', ' ') || 'N/A'}
+                  </span>
+                </div>
               </div>
             </Card>
           </div>

@@ -42,6 +42,8 @@ const ErrorScreen = lazy(() =>
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import authService from "./services/authService";
+import orderService from "./services/orderService";
+import itemService from "./services/itemService";
 import { DevDebugPanel } from "./components/DevDebugPanel";
 import {
   StoreScreen,
@@ -87,13 +89,28 @@ import {
   SendMoneySkeleton,
   InvestmentConfirmationSkeleton,
   ErrorScreenSkeleton,
+  QRPaymentSkeleton,
 } from "./components/LoadingSkeletons";
 
 // React.lazy mapping to named exports
 const TransactionHistory = lazy(() =>
   import("./components/TransactionHistory").then((m) => ({ default: m.TransactionHistory }))
 );
-const InvestmentsPage = lazy(() =>
+const Coupons = lazy(() =>
+  import("./components/Coupons").then((m) => ({ default: m.Coupons }))
+);
+const CouponCampaigns = lazy(() =>
+  import("./components/CouponCampaigns").then((m) => ({ default: m.CouponCampaigns }))
+);
+const CouponDetails = lazy(() =>
+  import("./components/CouponDetails").then((m) => ({ default: m.CouponDetails }))
+);
+const CouponSuccess = lazy(() =>
+  import("./components/CouponSuccess").then((m) => ({ default: m.CouponSuccess }))
+);
+const MyCoupons = lazy(() =>
+  import("./components/MyCoupons").then((m) => ({ default: m.MyCoupons }))
+);const InvestmentsPage = lazy(() =>
   import("./components/InvestmentsPage").then((m) => ({ default: m.InvestmentsPage }))
 );
 const InvestmentSuccess = lazy(() =>
@@ -108,11 +125,17 @@ const ProductDetail = lazy(() =>
 const CheckoutConfirmation = lazy(() =>
   import("./components/CheckoutConfirmation").then((m) => ({ default: m.CheckoutConfirmation }))
 );
+const CheckoutPage = lazy(() =>  // Added new checkout page import
+  import("./components/CheckoutPage").then((m) => ({ default: m.CheckoutPage }))
+);
 const PurchaseSuccess = lazy(() =>
   import("./components/PurchaseSuccess").then((m) => ({ default: m.PurchaseSuccess }))
 );
 const AiChat = lazy(() =>
   import("./components/AiChat").then((m) => ({ default: m.AiChat }))
+);
+const QRPayment = lazy(() =>
+  import("./components/QRPayment").then((m) => ({ default: m.QRPayment }))
 );
 
 // Backward-compatible generic fallback (kept for any screen without a dedicated skeleton)
@@ -138,6 +161,7 @@ type Screen =
   | "product-detail"
   | "shopping-cart"
   | "checkout"
+  | "checkout-page"  // Added new checkout page
   | "purchase-success"
   | "ai-chat"
   | "error"
@@ -164,8 +188,16 @@ type Screen =
   | "profile-view"
   | "update-profile"
   | "address-list"
-  | "add-address";
-
+  | "add-address"
+  | "qr-payment"
+  | "offers"
+  | "rewards"
+  | "referrals"
+  | "coupons"
+  | "coupon-campaigns"
+  | "coupon-details"
+  | "coupon-success"
+  | "my-coupons";
 interface UserData {
   email: string;
   phone: string;
@@ -312,6 +344,13 @@ export default function App() {
 
   // Error State
   const [errorType, setErrorType] = useState<"network" | "transaction" | "general" | "not-found">("general");
+
+  // State for purchase success data
+  const [purchaseSuccessData, setPurchaseSuccessData] = useState<{
+    items: CartItem[];
+    totalAmount: number;
+    itemCount: number;
+  } | null>(null);
 
   // Onboarding Flow Handlers
   const handleGetStarted = () => {
@@ -703,7 +742,7 @@ export default function App() {
 
   const handleBuyNow = (product: any, quantity: number) => {
     handleAddToCart(product, quantity);
-    handleNavigate("shopping-cart");
+    handleNavigate("checkout-page");  // Changed to navigate to checkout page directly
   };
 
   const handleUpdateCartQuantity = (id: number, quantity: number) => {
@@ -726,20 +765,100 @@ export default function App() {
     handleNavigate("checkout");
   };
 
-  const handleConfirmPurchase = (paymentMethod: "bery" | "usd", amount: number) => {
+  const handleConfirmPurchase = async (paymentMethod: "bery", amount: number) => {
     // Deduct from wallet balance
     setWalletBalance((prev: number) => prev - amount);
 
     const txId = `TX${Date.now().toString(36).toUpperCase()}`;
     setTransactionId(txId);
+    
+    // Calculate purchase data before placing order
+    const totalBery = cartItems.reduce((sum: number, item: CartItem) => {
+      const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+      return sum + price * item.quantity;
+    }, 0) * 1.1; // Including 10% tax
+    
+    const itemCount = cartItems.reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
+    
+    // Store purchase data for success screen
+    setPurchaseSuccessData({
+      items: [...cartItems],
+      totalAmount: totalBery,
+      itemCount
+    });
+    
+    // Place order on backend
+    try {
+      // Get real cart items from backend
+      const realCartItems = await itemService.getCartItems();
+      console.log("Real cart items:", realCartItems);
+      
+      // Calculate total from real cart items
+      const cartTotal = realCartItems.reduce((sum, item) => {
+        return sum + (item.price * item.quantity);
+      }, 0);
+      console.log("Cart total:", cartTotal);
+      
+      // Use first cart item's store_id as placeholder
+      const storeId = realCartItems.length > 0 ? realCartItems[0].item.store_id : 1;
+      console.log("Store ID:", storeId);
+      
+      // Get user data for contact information
+      const userProfile = await authService.getProfile();
+      console.log("User profile:", userProfile);
+            // Get user address information if available
+      let address = "123 Main St";
+      let longitude = -73.9857;
+      let latitude = 40.7484;
+      
+      // Try to get actual user address from profile if available
+      if (userProfile.address) {
+        address = userProfile.address;
+      }
+      
+      const orderData = {
+        payment_method: "wallet",
+        order_type: "delivery",
+        store_id: storeId,
+        distance: 5.5, // Placeholder - would be calculated
+        address: address,
+        longitude: longitude,
+        latitude: latitude,
+        order_amount: cartTotal,
+        cutlery: false,
+        contact_person_name: (userProfile.f_name || '') + ' ' + (userProfile.l_name || ''),
+        contact_person_number: userProfile.phone || '',
+        contact_person_email: userProfile.email || '',
+      };
+      
+      console.log("Order data being sent:", orderData);
+      const orderResponse = await orderService.placeOrder(orderData);
+      console.log("Order placed response:", orderResponse);
+      
+      // Refresh orders to ensure the new order appears in "My Orders"
+      await refreshOrders();
+      
+      toast.success("Order confirmed!", {
+        description: "Your payment has been processed successfully.",
+      });
+    } catch (error: any) {
+      console.error("Error placing order:", error);
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      console.error("Error headers:", error.response?.headers);
+      
+      toast.error("Order placement failed", {
+        description: "There was an issue placing your order. Please try again.",
+      });
+    }    
     handleNavigate("purchase-success");
 
-    // Record order
+    // Record order in local state
     const totalUSD = cartItems.reduce((sum: number, item: CartItem) => {
       const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
       return sum + price * item.quantity * 8.9;
     }, 0) * 1.1;
-    const totalBery = cartItems.reduce((sum: number, item: CartItem) => {
+    const totalBeryLocal = cartItems.reduce((sum: number, item: CartItem) => {
       const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
       return sum + price * item.quantity;
     }, 0) * 1.1;
@@ -748,7 +867,7 @@ export default function App() {
         id: txId,
         items: cartItems,
         totalUSD,
-        totalBery,
+        totalBery: totalBeryLocal,
         date: Date.now(),
       },
       ...prev,
@@ -759,7 +878,6 @@ export default function App() {
       setCartItems([]);
     }, 1000);
   };
-
   const handlePurchaseDone = () => {
     setCurrentScreen("dashboard");
   };
@@ -777,6 +895,17 @@ export default function App() {
 
   const handleRetryFromError = () => {
     setCurrentScreen("dashboard");
+  };
+
+  // Refresh orders from backend
+  const refreshOrders = async () => {
+    try {
+      const orderResponse = await orderService.getOrderHistory();
+      // Update the local orders state with fresh data from backend
+      setOrders(orderResponse.orders || []);
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
+    }
   };
 
   return (
@@ -999,15 +1128,32 @@ export default function App() {
           </Suspense>
         )}
 
+        {/* New Checkout Page */}
+        {currentScreen === "checkout-page" && (
+          <Suspense fallback={<CartOrCheckoutSkeleton />}>
+            <CheckoutPage
+              cartItems={cartItems}
+              totalBery={cartItems.reduce((sum: number, item: CartItem) => {
+                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+                return sum + (price * item.quantity);
+              }, 0) * 1.1}
+              totalUSD={cartItems.reduce((sum: number, item: CartItem) => {
+                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+                return sum + (price * item.quantity);
+              }, 0) * 1.1 / 8.9}
+              onBack={handleGoBack}
+              onConfirmPurchase={handleConfirmPurchase}
+              walletBalance={walletBalance}
+            />
+          </Suspense>
+        )}
+
         {currentScreen === "purchase-success" && (
           <Suspense fallback={<GenericScreenSkeleton />}>
             <PurchaseSuccess
               transactionId={transactionId}
-              totalAmount={`₿ ${(cartItems.reduce((sum: number, item: CartItem) => {
-                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
-                return sum + (price * item.quantity);
-              }, 0) * 1.1).toFixed(1)}`}
-              itemCount={cartItems.reduce((sum: number, item: CartItem) => sum + item.quantity, 0)}
+              totalAmount={`₿ ${purchaseSuccessData?.totalAmount.toFixed(1) || '0.0'}`}
+              itemCount={purchaseSuccessData?.itemCount || 0}
               onDone={handlePurchaseDone}
               onViewOrders={handleViewOrders}
             />
@@ -1072,7 +1218,7 @@ export default function App() {
           <FavouriteScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "orders" && (
-          <OrderScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
+          <OrderScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} orders={orders} />
         )}
         {currentScreen === "order-details" && (
           <OrderDetailsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
@@ -1107,8 +1253,87 @@ export default function App() {
         {currentScreen === "add-address" && (
           <AddAddressScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
-      </div>
+        
+        {currentScreen === "qr-payment" && (
+          <Suspense fallback={<QRPaymentSkeleton />}>
+            <QRPayment 
+              onBack={handleBackToDashboard}
+              userName={
+                userData.firstName || userData.lastName
+                  ? `${userData.firstName || ""} ${userData.lastName || ""}`.trim()
+                  : userData.email.split('@')[0] || userData.phone || "Guest"
+              }
+              userImage={userData.image}
+              walletBalance={walletBalance}
+              transactions={transactions}
+              counterpartyInfo={counterpartyInfo}
+            />
+          </Suspense>
+        )}
 
+        {/* Pauket Coupon Screens */}
+        {currentScreen === "coupons" && (
+          <Suspense fallback={<GenericScreenSkeleton />}>
+            <Coupons
+              onBack={handleBackToDashboard}
+              onNavigate={handleNavigate}
+              userId={userData.email || userData.phone}
+              userName={
+                userData.firstName || userData.lastName
+                  ? `${userData.firstName || ""} ${userData.lastName || ""}`.trim()
+                  : userData.email.split('@')[0] || userData.phone || "Guest"
+              }
+              userImage={userData.image}
+            />
+          </Suspense>
+        )}
+
+        {currentScreen === "coupon-campaigns" && (
+          <Suspense fallback={<GenericScreenSkeleton />}>
+            <CouponCampaigns
+              onBack={handleBackToDashboard}
+              onNavigate={handleNavigate}
+              userId={userData.email || userData.phone}
+            />
+          </Suspense>
+        )}
+
+        {currentScreen === "coupon-details" && (
+          <Suspense fallback={<GenericScreenSkeleton />}>
+            <CouponDetails
+              onBack={handleBackToDashboard}
+              onNavigate={handleNavigate}
+              userId={userData.email || userData.phone}
+            />
+          </Suspense>
+        )}
+
+        {currentScreen === "coupon-success" && (
+          <Suspense fallback={<GenericScreenSkeleton />}>
+            <CouponSuccess
+              onBack={handleBackToDashboard}
+              onNavigate={handleNavigate}
+              userId={userData.email || userData.phone}
+            />
+          </Suspense>
+        )}
+
+        {currentScreen === "my-coupons" && (
+          <Suspense fallback={<GenericScreenSkeleton />}>
+            <MyCoupons
+              onBack={handleBackToDashboard}
+              onNavigate={handleNavigate}
+              userId={userData.email || userData.phone}
+              userName={
+                userData.firstName || userData.lastName
+                  ? `${userData.firstName || ""} ${userData.lastName || ""}`.trim()
+                  : userData.email.split('@')[0] || userData.phone || "Guest"
+              }
+              userImage={userData.image}
+            />
+          </Suspense>
+        )}
+      </div>
       <Toaster />
       <DevDebugPanel currentScreen={currentScreen} onNavigate={handleNavigate} />
     </div>

@@ -1,7 +1,9 @@
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Bell, Plus, Wallet, QrCode, ArrowDownToLine, Copy, TrendingUp, PiggyBank, DollarSign, LineChart, ArrowRight, Clock, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react";
+import { Bell, Plus, Wallet, QrCode, ArrowDownToLine, Copy, TrendingUp, PiggyBank, DollarSign, LineChart, ArrowRight, Clock, ArrowUpRight, ArrowDownLeft, RefreshCw, Share2, Gift, Users } from "lucide-react";
+import QRCode from "react-qr-code";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { BottomNavigation } from "./BottomNavigation";
@@ -63,6 +65,7 @@ export function NewDashboard({
     }
   };
   const [detailsOpenId, setDetailsOpenId] = useState<string | null>(null);
+  const [showQRCode, setShowQRCode] = useState(false);
 
   // Derive Recent Transactions
   const recentTransactions = transactions.slice(0, 5).map(t => {
@@ -74,7 +77,7 @@ export function NewDashboard({
 
     const type = t.transaction_type === 'fund_transfer' ? 'send'
       : t.transaction_type === 'fund_transfer_received' ? 'receive'
-      : t.transaction_type === 'add_fund' ? 'credit' : 'other';
+        : t.transaction_type === 'add_fund' ? 'credit' : 'other';
 
     return {
       id: t.transaction_id,
@@ -85,7 +88,7 @@ export function NewDashboard({
       avatar: (t.reference && counterpartyInfo?.[t.reference]?.image) || null,
       icon: type === 'send' ? <ArrowUpRight className="w-5 h-5 text-red-400" />
         : type === 'receive' ? <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
-        : <RefreshCw className="w-5 h-5 text-blue-400" />,
+          : <RefreshCw className="w-5 h-5 text-blue-400" />,
       original: t,
       type
     };
@@ -160,7 +163,10 @@ export function NewDashboard({
                   My Wallet
                 </span>
               </div>
-              <button className="p-2 rounded-full hover:bg-white/10 transition-colors">
+              <button
+                onClick={() => setShowQRCode(true)}
+                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              >
                 <QrCode className="w-5 h-5 text-blue-200" />
               </button>
             </div>
@@ -217,12 +223,13 @@ export function NewDashboard({
             {/* Action Buttons */}
             <div className="flex gap-3">
               <button
+                onClick={() => onNavigate('qr-payment')}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all hover:scale-105"
                 style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', backdropFilter: 'blur(10px)' }}
               >
-                <ArrowDownToLine className="w-4 h-4 text-white" />
+                <QrCode className="w-4 h-4 text-white" />
                 <span className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                  Receive
+                  QR Pay
                 </span>
               </button>
               <button
@@ -382,6 +389,42 @@ export function NewDashboard({
         </div>
       </div>
 
+      {/* Offers & Rewards */}
+      <div className="px-5 mb-6">
+        <h2 className="text-base text-white mb-4" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+          Offers & Rewards
+        </h2>
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => handleNavigate('coupons')}
+            className="bg-[#1a1a2e] border border-slate-600/30 rounded-2xl p-4 hover:border-blue-600/40 transition-all hover:scale-105 flex flex-col items-center justify-center"
+          >
+            <Gift className="w-6 h-6 text-purple-400 mb-2" />
+            <span className="text-xs text-slate-300" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+              Offers
+            </span>
+          </button>
+          <button
+            onClick={() => handleNavigate('rewards')}
+            className="bg-[#1a1a2e] border border-slate-600/30 rounded-2xl p-4 hover:border-blue-600/40 transition-all hover:scale-105 flex flex-col items-center justify-center"
+          >
+            <TrendingUp className="w-6 h-6 text-amber-400 mb-2" />
+            <span className="text-xs text-slate-300" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+              Rewards
+            </span>
+          </button>
+          <button
+            onClick={() => handleNavigate('referrals')}
+            className="bg-[#1a1a2e] border border-slate-600/30 rounded-2xl p-4 hover:border-blue-600/40 transition-all hover:scale-105 flex flex-col items-center justify-center"
+          >
+            <Users className="w-6 h-6 text-emerald-400 mb-2" />
+            <span className="text-xs text-slate-300" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+              Referrals
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* Recent Transactions */}
       <div className="px-5 mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -471,6 +514,53 @@ export function NewDashboard({
       </div>
 
       <BottomNavigation currentScreen="dashboard" onNavigate={handleNavigate} cartItemCount={cartItemCount} />
+
+      {/* QR Code Dialog */}
+      <Dialog open={showQRCode} onOpenChange={setShowQRCode}>
+        <DialogContent className="bg-[#1a1a2e] border-slate-700/50 text-white sm:max-w-md mx-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl font-bold">My QR Code</DialogTitle>
+            <DialogDescription className="text-center text-slate-400">
+              Scan to pay {userName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-6 space-y-6">
+            <div className="p-4 bg-white rounded-3xl shadow-xl shadow-blue-500/10 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <QRCode
+                value={JSON.stringify({
+                  type: 'payment',
+                  name: userName,
+                  wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e', // Mock wallet
+                  app: 'BeryMarket'
+                })}
+                size={300}
+                level="H"
+                viewBox={`0 0 256 256`}
+                style={{ borderRadius: "10px" }}
+              />
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-xs text-blue-300 font-medium tracking-wide">Bery Market Pay</span>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <Button
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+              onClick={() => setShowQRCode(false)}
+            >
+              Close
+            </Button>
+            <Button
+              className="flex-1 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-900/20"
+            >
+              <Share2 className="w-4 h-4" /> Share
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

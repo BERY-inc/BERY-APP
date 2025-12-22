@@ -120,6 +120,44 @@ class OrderService {
       throw error;
     }
   }
-}
+
+  // Place a new order
+  async placeOrder(orderData: {
+    payment_method: 'cash_on_delivery' | 'digital_payment' | 'wallet' | 'offline_payment';
+    order_type: 'take_away' | 'delivery' | 'parcel';
+    store_id: number;
+    distance?: number;
+    address?: string;
+    longitude?: number;
+    latitude?: number;
+    order_amount: number;
+    coupon_code?: string;
+    order_note?: string;
+    cutlery?: boolean;
+    schedule_at?: string;
+    dm_tips?: number;
+    parcel_category_id?: number;
+    receiver_details?: string;
+    charge_payer?: 'sender' | 'receiver';
+    contact_person_name?: string;
+    contact_person_number?: string;
+    contact_person_email?: string;
+  }): Promise<any> {
+    try {
+      // Ensure all required fields are present
+      const completeOrderData = {
+        ...orderData,
+        contact_person_name: orderData.contact_person_name || '',
+        contact_person_number: orderData.contact_person_number || '',
+        contact_person_email: orderData.contact_person_email || '',
+      };
+      
+      const response = await apiClient.post('/api/v1/customer/order/place', completeOrderData);
+      return response.data;
+    } catch (error) {
+      console.error('Error placing order:', error);
+      throw error;
+    }
+  }}
 
 export default new OrderService();
