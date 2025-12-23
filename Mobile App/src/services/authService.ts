@@ -79,7 +79,6 @@ class AuthService {
       }
       return response.data;
     } catch (error: any) {
-      console.error('Login error details:', error);
 
       // Extract specific error message from Laravel backend response
       if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
@@ -103,7 +102,6 @@ class AuthService {
       }
       return response.data;
     } catch (error: any) {
-      console.error('Registration error details:', error);
 
       // Extract specific error message from Laravel backend response
       // Format is typically { errors: [ { code: "...", message: "..." } ] }
@@ -130,7 +128,6 @@ class AuthService {
       }
       return response.data;
     } catch (error: any) {
-      console.error('OTP Verification error details:', error);
 
       // Extract specific error message
       if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
@@ -152,7 +149,6 @@ class AuthService {
       });
       return response.data;
     } catch (error: any) {
-      console.error('Check User error:', error);
       throw error;
     }
   }
@@ -163,7 +159,6 @@ class AuthService {
       const response = await apiClient.get<UserProfile>('/api/v1/customer/info');
       return response.data;
     } catch (error: any) {
-      console.error('Get Profile error:', error);
       throw error;
     }
   }

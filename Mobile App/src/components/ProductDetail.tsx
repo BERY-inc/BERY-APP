@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import { ArrowLeft, Star, ShoppingCart, Shield, Truck, RefreshCw, Heart } from "lucide-react";
+import { ArrowLeft, Star, ShoppingCart, Shield, Truck, RefreshCw, Heart, Image as ImageIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -37,6 +37,14 @@ export function ProductDetail({ product, onBack, isService = false, onAddToCart,
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
+
+  const getImageUrl = (image: any) => {
+    if (!image || image === "📦") return null;
+    const imgStr = String(image);
+    if (imgStr.startsWith('http') || imgStr.startsWith('//')) return imgStr;
+    const cleanPath = imgStr.startsWith('/') ? imgStr.slice(1) : imgStr;
+    return `https://market.bery.in/storage/app/public/product/${cleanPath}`;
+  };
 
   const handleAddToCart = () => {
     try { Haptics.notification({ type: NotificationType.Success }); } catch {}
@@ -92,7 +100,17 @@ export function ProductDetail({ product, onBack, isService = false, onAddToCart,
                 })()}
               </div>
             ) : (
-              <div className="text-8xl">{product.image}</div>
+              (() => {
+                const imgToShow = product.images && product.images.length > 0 
+                  ? product.images[selectedImage] 
+                  : product.image;
+                const finalUrl = getImageUrl(imgToShow);
+                return finalUrl ? (
+                   <img src={finalUrl} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                   <ImageIcon className="w-32 h-32 text-white/50" />
+                );
+              })()
             )}
           </div>
 
@@ -103,11 +121,15 @@ export function ProductDetail({ product, onBack, isService = false, onAddToCart,
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
-                  className={`w-16 h-16 rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center flex-shrink-0 transition-all ${
+                  className={`w-16 h-16 rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center flex-shrink-0 transition-all overflow-hidden ${
                     selectedImage === index ? 'ring-2 ring-blue-500' : ''
                   }`}
                 >
-                  <span className="text-2xl">{img}</span>
+                  {getImageUrl(img) ? (
+                    <img src={getImageUrl(img)!} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-white/50" />
+                  )}
                 </button>
               ))}
             </div>

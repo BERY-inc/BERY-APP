@@ -3,7 +3,7 @@ import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
-import { ArrowLeft, Search, Star, ShoppingBag, ShoppingCart, Briefcase, Smartphone, Palette, Code, Video, Music, Zap, Package, Clock, MapPin, ChevronDown, X, ShoppingBasket, Pill, Laptop, Utensils, Home, Sparkles, Truck, Store as StoreIcon, Apple, Shield } from "lucide-react";
+import { ArrowLeft, Search, Star, ShoppingBag, ShoppingCart, Briefcase, Smartphone, Palette, Code, Video, Music, Zap, Package, Clock, MapPin, ChevronDown, X, ShoppingBasket, Pill, Laptop, Utensils, Home, Sparkles, Truck, Store as StoreIcon, Apple, Shield, Image as ImageIcon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BottomNavigation } from "./BottomNavigation";
 import { Haptics, NotificationType } from "@capacitor/haptics";
@@ -59,9 +59,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   useEffect(() => {
     const fetchZones = async () => {
       try {
-        console.log("Fetching zones...");
         const zonesData = await metadataService.getZones();
-        console.log("Zones fetched:", zonesData);
         setZones(Array.isArray(zonesData) ? zonesData : []);
 
         // Extract all zone IDs and set as default
@@ -70,15 +68,12 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
         // Check if user has a stored zone preference
         const storedZone = localStorage.getItem('zoneId');
         if (storedZone) {
-          console.log("Using stored zone:", storedZone);
           // Don't set selectedZoneId for display, but keep it in localStorage
         } else if (zoneIds.length > 0) {
           // Default: Set all zones in localStorage as JSON array
-          console.log("Setting default zones:", zoneIds);
           localStorage.setItem('zoneId', JSON.stringify(zoneIds));
         }
       } catch (error) {
-        console.error('Error fetching zones:', error);
       }
     };
     fetchZones();
@@ -88,9 +83,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   useEffect(() => {
     const fetchModules = async () => {
       try {
-        console.log("Fetching modules...");
         const modulesData = await metadataService.getModules();
-        console.log("Modules fetched:", modulesData);
         setModules(Array.isArray(modulesData) ? modulesData : []);
 
         // Find and set Grocery module as default
@@ -98,19 +91,16 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           const storedModule = localStorage.getItem('moduleId');
 
           if (storedModule && modulesData.find((m: Module) => m.id === Number(storedModule))) {
-            console.log("Using stored module:", storedModule);
             setSelectedModuleId(Number(storedModule));
           } else {
             // Default to Grocery module
             const grocery = modulesData.find(m => m.module_name.toLowerCase() === 'grocery');
             const defaultModule = grocery || modulesData[0];
-            console.log("Setting default module (Grocery):", defaultModule);
             setSelectedModuleId(defaultModule.id);
             localStorage.setItem('moduleId', defaultModule.id.toString());
           }
         }
       } catch (error) {
-        console.error('Error fetching modules:', error);
       }
     };
     fetchModules();
@@ -120,6 +110,13 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   // Fetch Featured Stores
   useEffect(() => {
     const fetchFeaturedStores = async () => {
+      // Check if we have a zone selected (either in localStorage or from zones state)
+      const storedZone = localStorage.getItem('zoneId');
+      if (!storedZone && zones.length === 0) {
+         // If no zone is stored and we haven't fetched zones yet, wait.
+         return;
+      }
+
       try {
         const fetchOptions = selectedModuleId ? { moduleId: selectedModuleId } : {};
 
@@ -151,34 +148,35 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           setFeaturedStores([]);
         }
       } catch (error) {
-        console.error('Error fetching featured stores:', error);
       }
     };
 
     fetchFeaturedStores();
-  }, [selectedModuleId]);
+  }, [selectedModuleId, zones]);
 
   // Fetch Data (Products & Stores) when module is ready
   useEffect(() => {
     if (!selectedModuleId) {
-      console.log("Waiting for module to be set...");
       return;
     }
 
     // Ensure zoneId header exists before fetching
     const storedZone = localStorage.getItem('zoneId');
-    if (!storedZone && zones.length > 0) {
-      const zoneIds = zones.map(z => z.id);
-      try {
-        localStorage.setItem('zoneId', JSON.stringify(zoneIds));
-        console.log('Default zoneId set from zones list:', zoneIds);
-      } catch { }
+    if (!storedZone) {
+       if (zones.length > 0) {
+          const zoneIds = zones.map(z => z.id);
+          try {
+            localStorage.setItem('zoneId', JSON.stringify(zoneIds));
+          } catch { }
+       } else {
+          // If no stored zone and no zones fetched yet, wait
+          return;
+       }
     }
 
     const fetchData = async () => {
       try {
         setLoading(true);
-        console.log(`Fetching data - Module: ${selectedModuleId}`);
 
         let [productData, storeData] = await Promise.all([
           itemService.getLatestProducts({
@@ -192,7 +190,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
 
         // Fallback: if no stores for selected zone, switch to All Zones and refetch once
         if (Array.isArray(storeData) && storeData.length === 0 && zones.length > 0) {
-          console.warn('No stores in selected zone. Falling back to All Zones.');
           setAllZonesHeader();
           [productData, storeData] = await Promise.all([
             itemService.getLatestProducts({
@@ -204,22 +201,21 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
             storeService.getLatestStores()
           ]);
         }
-        console.log("Products fetched:", productData);
-        console.log("Stores fetched:", storeData);
 
         const transformedProducts = Array.isArray(productData) ? productData.map((product: any) => ({
           id: product.id,
           name: product.name,
           price: `₿ ${product.price}`,
-          usdPrice: `$${(product.price * 6.5).toFixed(2)}`,
+          usdPrice: `$${(product.price * 8.9).toFixed(2)}`,
           rating: product.avg_rating || 4.5,
           reviews: product.rating_count || 100,
           category: product.category_id ? product.category_id.toString() : "uncategorized",
           seller: product.store_name || "Store Name",
-          image: product.image,
+          image: product.image_full_url || product.image,
+          images: product.images,
+          store_id: product.store_id,
         })) : [];
 
-        console.log("Transformed products:", transformedProducts);
         setProducts(transformedProducts);
         setStores(Array.isArray(storeData) ? storeData : []);
 
@@ -228,7 +224,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           const hasSelected = selectedStoreId ? storeData.some(s => Number(s.id) === Number(selectedStoreId)) : false;
           // Guard: if selected store is invalid for current context, reset to NULL (All Stores)
           if (selectedStoreId && !hasSelected) {
-            console.warn('Selected store not found in new context. Resetting to All Stores.');
             setSelectedStoreId(null);
             try { localStorage.removeItem('storeId'); } catch { }
           }
@@ -244,7 +239,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
         // NEW: Initialize selected store from list if not set - REMOVED to allow "All Stores" view
         // if (!selectedStoreId && Array.isArray(storeData) && storeData.length > 0) { ... }
       } catch (error) {
-        console.error('Error fetching data:', error);
         setProducts([]);
         setStores([]);
       } finally {
@@ -281,7 +275,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
     if (!image || image === "📦") return null;
     const imgStr = String(image);
     if (imgStr.startsWith('http') || imgStr.startsWith('//')) return imgStr;
-    // Remove leading slash if present to avoid double slashes
     const cleanPath = imgStr.startsWith('/') ? imgStr.slice(1) : imgStr;
     return `https://market.bery.in/storage/app/public/product/${cleanPath}`;
   };
@@ -290,6 +283,11 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   useEffect(() => {
     const refetchProducts = async () => {
       if (!selectedModuleId) return;
+
+      // Ensure zoneId is available
+      const storedZone = localStorage.getItem('zoneId');
+      if (!storedZone) return;
+
       try {
         setLoading(true);
         const productData = await itemService.getLatestProducts({
@@ -303,19 +301,19 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           id: product.id,
           name: product.name,
           price: `₿ ${product.price}`,
-          usdPrice: `$${(product.price * 6.5).toFixed(2)}`,
+          usdPrice: `$${(product.price * 8.9).toFixed(2)}`,
           rating: product.avg_rating || 4.5,
           reviews: product.rating_count || 100,
           category: product.category_id ? product.category_id.toString() : "uncategorized",
           seller: product.store_name || "Store Name",
           image: product.image,
+          store_id: product.store_id,
         });
 
         let transformedProducts = Array.isArray(productData) ? productData.map(transformProduct) : [];
 
         // Fallback: if no products with selected zone, switch to All Zones and refetch once
         if (transformedProducts.length === 0 && zones.length > 0) {
-          console.warn('No products in selected zone. Falling back to All Zones.');
           setAllZonesHeader();
           const fallbackData = await itemService.getLatestProducts({
             store_id: selectedStoreId ?? undefined,
@@ -338,7 +336,6 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           }))
         ]);
       } catch (error) {
-        console.error('Error refetching products:', error);
         setProducts([]);
       } finally {
         setLoading(false);
@@ -763,7 +760,9 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
                           }}
                         />
                       ) : null}
-                      <span className={`text-5xl absolute inset-0 flex items-center justify-center ${getImageUrl(item.image) ? 'hidden' : ''}`}>📦</span>
+                      <div className={`absolute inset-0 flex items-center justify-center ${getImageUrl(item.image) ? 'hidden' : ''}`}>
+                        <ImageIcon className="w-12 h-12 text-white/30" />
+                      </div>
                     </div>
 
                     <div className="mb-2 flex-1">

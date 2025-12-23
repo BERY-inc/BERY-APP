@@ -19,7 +19,6 @@ class PauketService {
       const response = await pauketClient.getCategoryList();
       return response.categories;
     } catch (error) {
-      console.error('Failed to fetch category list:', error);
       throw error;
     }
   }
@@ -47,7 +46,6 @@ class PauketService {
         totalPages: response.total_pages
       };
     } catch (error) {
-      console.error('Failed to fetch campaigns:', error);
       throw error;
     }
   }
@@ -63,7 +61,6 @@ class PauketService {
       const response = await pauketClient.getCampaignDetails(params);
       return response.campaign;
     } catch (error) {
-      console.error('Failed to fetch campaign details:', error);
       throw error;
     }
   }
@@ -97,7 +94,6 @@ class PauketService {
         CTARedirect: response.CTAredirect
       };
     } catch (error) {
-      console.error('Failed to activate coupon:', error);
       throw error;
     }
   }
@@ -124,7 +120,6 @@ class PauketService {
         totalPages: response.total_pages
       };
     } catch (error) {
-      console.error('Failed to fetch user coupons:', error);
       throw error;
     }
   }

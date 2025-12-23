@@ -17,7 +17,6 @@ class WishlistService {
       const response = await apiClient.get<{ products: WishlistItem[] }>('/api/v1/customer/wish-list/');
       return response.data.products;
     } catch (error) {
-      console.error('Error fetching wishlist:', error);
       throw error;
     }
   }
@@ -28,7 +27,6 @@ class WishlistService {
       const response = await apiClient.post('/api/v1/customer/wish-list/add', { item_id: itemId });
       return response.data;
     } catch (error) {
-      console.error('Error adding item to wishlist:', error);
       throw error;
     }
   }
@@ -41,7 +39,6 @@ class WishlistService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error removing item from wishlist:', error);
       throw error;
     }
   }

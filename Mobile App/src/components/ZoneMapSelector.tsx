@@ -39,7 +39,7 @@ function isPointInPolygon(point: { lat: number; lng: number }, polygon: { lat: n
 export function ZoneMapSelector({ zones, selectedZoneId, onZoneSelect, onClose }: ZoneMapSelectorProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: "" // User needs to provide this, or we use a placeholder if they have one in env
+        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ""
     });
 
     const [map, setMap] = useState<google.maps.Map | null>(null);

@@ -713,30 +713,46 @@ export default function App() {
     setCurrentScreen("product-detail");
   };
 
-  const handleAddToCart = (product: any, quantity: number) => {
-    const existingItem = cartItems.find(item => item.id === product.id);
-
-    if (existingItem) {
-      setCartItems(
-        cartItems.map((item: CartItem) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        )
-      );
-    } else {
-      const newItem: CartItem = {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        usdPrice: product.usdPrice,
-        seller: product.seller,
-        image: product.image,
+  const handleAddToCart = async (product: any, quantity: number) => {
+    try {
+      await itemService.addToCart({ item_id: Number(product.id), quantity: Number(quantity) });
+      const backendCart = await itemService.getCartItems();
+      const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
+        id: Number(ci.item_id),
+        name: ci.item?.name ?? product.name,
+        price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+        usdPrice: `$${(((ci.price ?? 0) * 8.9)).toFixed(2)}`,
+        seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : (product.seller ?? "Store"),
+        image: ci.item?.image ?? product.image,
         icon: product.icon,
-        quantity: quantity,
+        quantity: Number(ci.quantity ?? quantity),
         type: isServiceDetail ? "service" : "product",
-      };
-      setCartItems([...cartItems, newItem]);
+      }));
+      setCartItems(mapped);
+    } catch (e) {
+      const existingItem = cartItems.find(item => item.id === product.id);
+      if (existingItem) {
+        setCartItems(
+          cartItems.map((item: CartItem) =>
+            item.id === product.id
+              ? { ...item, quantity: item.quantity + quantity }
+              : item
+          )
+        );
+      } else {
+        const newItem: CartItem = {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          usdPrice: product.usdPrice,
+          seller: product.seller,
+          image: product.image,
+          icon: product.icon,
+          quantity: quantity,
+          type: isServiceDetail ? "service" : "product",
+        };
+        setCartItems([...cartItems, newItem]);
+      }
     }
   };
 
@@ -745,16 +761,55 @@ export default function App() {
     handleNavigate("checkout-page");  // Changed to navigate to checkout page directly
   };
 
-  const handleUpdateCartQuantity = (id: number, quantity: number) => {
-    setCartItems(
-      cartItems.map((item: CartItem) =>
-        item.id === id ? { ...item, quantity } : item
-      )
-    );
+  const handleUpdateCartQuantity = async (id: number, quantity: number) => {
+    try {
+      await itemService.addToCart({ item_id: Number(id), quantity: Number(quantity) });
+      const backendCart = await itemService.getCartItems();
+      const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
+        id: Number(ci.item_id),
+        name: ci.item?.name ?? "",
+        price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+        usdPrice: `$${(((ci.price ?? 0) * 8.9)).toFixed(2)}`,
+        seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : "Store",
+        image: ci.item?.image,
+        icon: undefined,
+        quantity: Number(ci.quantity ?? 1),
+        type: "product",
+      }));
+      setCartItems(mapped);
+    } catch {
+      setCartItems(
+        cartItems.map((item: CartItem) =>
+          item.id === id ? { ...item, quantity } : item
+        )
+      );
+    }
   };
 
-  const handleRemoveFromCart = (id: number) => {
-    setCartItems(cartItems.filter((item: CartItem) => item.id !== id));
+  const handleRemoveFromCart = async (id: number) => {
+    try {
+      await itemService.clearCart();
+      const remaining = cartItems.filter((item: CartItem) => item.id !== id);
+      for (const item of remaining) {
+        const qty = Number(item.quantity ?? 1);
+        await itemService.addToCart({ item_id: Number(item.id), quantity: qty });
+      }
+      const backendCart = await itemService.getCartItems();
+      const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
+        id: Number(ci.item_id),
+        name: ci.item?.name ?? "",
+        price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+        usdPrice: `$${(((ci.price ?? 0) * 8.9)).toFixed(2)}`,
+        seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : "Store",
+        image: ci.item?.image,
+        icon: undefined,
+        quantity: Number(ci.quantity ?? 1),
+        type: "product",
+      }));
+      setCartItems(mapped);
+    } catch {
+      setCartItems(cartItems.filter((item: CartItem) => item.id !== id));
+    }
   };
 
   const handleCheckout = () => {

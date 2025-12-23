@@ -70,18 +70,15 @@ export const productService = {
             const products = response.data.products;
             return Array.isArray(products) ? products : [];
         } catch (error: any) {
-            console.error('Error fetching latest products:', error);
             // Fallback to popular or recommended if latest fails (e.g., 500)
             try {
                 const fallbackPopular = await apiClient.get<{ products: Product[] }>("/api/v1/items/popular");
                 return fallbackPopular.data.products ?? [];
             } catch (popErr) {
-                console.error('Fallback to popular failed:', popErr);
                 try {
                     const fallbackRecommended = await apiClient.get<{ products: Product[] }>("/api/v1/items/recommended");
                     return fallbackRecommended.data.products ?? [];
                 } catch (recErr) {
-                    console.error('Fallback to recommended failed:', recErr);
                     throw error;
                 }
             }
@@ -93,7 +90,6 @@ export const productService = {
             const response = await apiClient.get('/api/v1/items/popular');
             return response.data;
         } catch (error) {
-            console.error('Error fetching popular products:', error);
             throw error;
         }
     },
@@ -103,7 +99,6 @@ export const productService = {
             const response = await apiClient.get('/api/v1/items/discounted');
             return response.data;
         } catch (error) {
-            console.error('Error fetching discounted products:', error);
             throw error;
         }
     },
@@ -113,7 +108,6 @@ export const productService = {
             const response = await apiClient.get('/api/v1/items/recommended');
             return response.data;
         } catch (error) {
-            console.error('Error fetching recommended products:', error);
             throw error;
         }
     }

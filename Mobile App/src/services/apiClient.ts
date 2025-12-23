@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 
 // Create axios instance with default configuration
 const apiClient: AxiosInstance = axios.create({
-  baseURL: 'https://market.bery.in/',
+  baseURL: (import.meta as any).env?.VITE_API_BASE_URL || 'https://market.bery.in/',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -13,22 +13,20 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor to add auth token and optional zone/module headers
 apiClient.interceptors.request.use(
   (config) => {
-    // Log the request URL for debugging
-    console.log('API Request:', config.method?.toUpperCase(), config.baseURL + config.url);
+    const isDev = !!(import.meta as any).env?.DEV;
+    if (isDev) {
+      console.log('API Request:', config.method?.toUpperCase(), (config.baseURL || '') + (config.url || ''));
+    }
 
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Add required localization header
     config.headers['X-localization'] = localStorage.getItem('language') || 'en';
 
-    // Add zoneId header - handle both single ID and array
     const zoneId = localStorage.getItem('zoneId');
     if (zoneId) {
-      // If it's already a JSON string (array), use it as-is
-      // Otherwise, just use the single value
       try {
         const parsed = JSON.parse(zoneId);
         if (Array.isArray(parsed)) {
@@ -37,21 +35,13 @@ apiClient.interceptors.request.use(
           config.headers.zoneId = zoneId;
         }
       } catch {
-        // Not JSON, use as-is
         config.headers.zoneId = zoneId;
       }
-      console.log('Adding zoneId header:', config.headers.zoneId);
-    } else {
-      console.warn('No zoneId in localStorage!');
     }
 
-    // Add moduleId header
     const moduleId = localStorage.getItem('moduleId');
     if (moduleId) {
       config.headers.moduleId = moduleId;
-      console.log('Adding moduleId header:', moduleId);
-    } else {
-      console.warn('No moduleId in localStorage!');
     }
 
     return config;
@@ -64,20 +54,42 @@ apiClient.interceptors.request.use(
 // Response interceptor to handle common error cases
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.config.url, 'Status:', response.status);
+    const isDev = !!(import.meta as any).env?.DEV;
+    if (isDev) {
+      console.log('API Response:', response.config.url, 'Status:', response.status);
+    }
     return response;
   },
   (error) => {
-    console.error('API Error:', error.config?.url, error.message);
-    if (error.response) {
-      console.error('Error Response:', error.response.data);
-    }
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      localStorage.removeItem('authToken');
-      // Redirect to login or emit event
-    }
-    return Promise.reject(error);
+    const normalize = (err: any): Error => {
+      if (err.response) {
+        const status = err.response.status;
+        const data = err.response.data;
+        const msg = (data && (data.message || data.error || data.errors?.[0]?.message)) || err.message || 'Request failed';
+        switch (status) {
+          case 400:
+            return new Error(msg || 'Bad Request');
+          case 401:
+            try { localStorage.removeItem('authToken'); } catch {}
+            return new Error('Unauthorized');
+          case 403:
+            return new Error('Forbidden');
+          case 404:
+            return new Error('Not Found');
+          case 429:
+            return new Error('Too Many Requests');
+          case 500:
+            return new Error('Server Error');
+          default:
+            return new Error(msg);
+        }
+      } else if (err.request) {
+        return new Error('Network Error');
+      } else {
+        return new Error(err.message || 'Unknown Error');
+      }
+    };
+    return Promise.reject(normalize(error));
   }
 );
 

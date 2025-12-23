@@ -24,10 +24,8 @@ class MetadataService {
     async getZones(): Promise<Zone[]> {
         try {
             const response = await apiClient.get<Zone[]>('/api/v1/zone/list');
-            console.log('Zones API Response:', response.data);
             return response.data;
         } catch (error) {
-            console.error('Error fetching zones:', error);
             throw error;
         }
     }
@@ -35,10 +33,8 @@ class MetadataService {
     async getModules(): Promise<Module[]> {
         try {
             const response = await apiClient.get<Module[]>('/api/v1/module');
-            console.log('Modules API Response:', response.data);
             return response.data;
         } catch (error) {
-            console.error('Error fetching modules:', error);
             throw error;
         }
     }
@@ -48,7 +44,6 @@ class MetadataService {
             const response = await apiClient.get<any[]>('/api/v1/categories');
             return response.data;
         } catch (error) {
-            console.error('Error fetching categories:', error);
             return [];
         }
     }

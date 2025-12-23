@@ -66,13 +66,11 @@ const storeService = {
       const stores: Store[] = Array.isArray(data) ? data : (data?.stores ?? []);
       return stores;
     } catch (error) {
-      console.error('Error fetching stores:', error);
       // Fallback to latest stores
       try {
         const latestRes = await apiClient.get<{ stores: Store[] }>("/api/v1/stores/latest");
         return latestRes.data?.stores ?? [];
       } catch (fallbackErr) {
-        console.error('Fallback latest stores failed:', fallbackErr);
         throw error;
       }
     }
@@ -88,7 +86,6 @@ const storeService = {
       const response = await apiClient.get<{ stores: Store[] }>("/api/v1/stores/latest", { params });
       return response.data?.stores ?? [];
     } catch (error) {
-      console.error('Error fetching latest stores:', error);
       throw error;
     }
   },
@@ -102,7 +99,6 @@ const storeService = {
       const response = await apiClient.get<{ stores: Store[] }>('\/api\/v1\/stores\/popular', { params });
       return response.data?.stores ?? [];
     } catch (error) {
-      console.error('Error fetching popular stores:', error);
       throw error;
     }
   },
@@ -112,7 +108,6 @@ const storeService = {
       const response = await apiClient.get<{ stores: Store[] }>('\/api\/v1\/stores\/recommended');
       return response.data?.stores ?? [];
     } catch (error) {
-      console.error('Error fetching recommended stores:', error);
       throw error;
     }
   }

@@ -11,7 +11,6 @@ class OrderService {
       );
       return response.data;
     } catch (error) {
-      console.error('Error fetching running orders:', error);
       throw error;
     }
   }
@@ -24,7 +23,6 @@ class OrderService {
       );
       return response.data;
     } catch (error) {
-      console.error('Error fetching order history:', error);
       throw error;
     }
   }
@@ -37,7 +35,6 @@ class OrderService {
       );
       return response.data;
     } catch (error) {
-      console.error('Error fetching order details:', error);
       throw error;
     }
   }
@@ -50,7 +47,6 @@ class OrderService {
       );
       return response.data;
     } catch (error) {
-      console.error('Error tracking order:', error);
       throw error;
     }
   }
@@ -69,7 +65,6 @@ class OrderService {
       
       return response.status === 200;
     } catch (error) {
-      console.error('Error canceling order:', error);
       throw error;
     }
   }
@@ -82,7 +77,6 @@ class OrderService {
       );
       return response.data.reasons;
     } catch (error) {
-      console.error('Error fetching cancellation reasons:', error);
       throw error;
     }
   }
@@ -95,7 +89,6 @@ class OrderService {
       );
       return response.data.refundReasons;
     } catch (error) {
-      console.error('Error fetching refund reasons:', error);
       throw error;
     }
   }
@@ -116,7 +109,6 @@ class OrderService {
       
       return response.status === 200;
     } catch (error) {
-      console.error('Error submitting refund request:', error);
       throw error;
     }
   }
@@ -155,7 +147,6 @@ class OrderService {
       const response = await apiClient.post('/api/v1/customer/order/place', completeOrderData);
       return response.data;
     } catch (error) {
-      console.error('Error placing order:', error);
       throw error;
     }
   }}

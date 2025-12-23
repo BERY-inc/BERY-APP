@@ -57,8 +57,18 @@ class ItemService {
   // Get latest products with graceful fallbacks
   async getLatestProducts(options?: { store_id?: number; category_id?: number; limit?: number; offset?: number }): Promise<Item[]> {
     try {
-      // Determine store_id: prefer provided, else localStorage, else fetch latest stores
-      let storeId = options?.store_id ?? (localStorage.getItem('storeId') ? Number(localStorage.getItem('storeId')) : undefined);
+      // Determine store_id: prefer provided, else localStorage (selectedStoreId or storeId), else fetch latest stores
+      let storeId = options?.store_id;
+      if (!storeId) {
+        const storedSelected = localStorage.getItem('selectedStoreId');
+        const storedId = localStorage.getItem('storeId');
+        if (storedSelected && !isNaN(Number(storedSelected))) {
+          storeId = Number(storedSelected);
+        } else if (storedId && !isNaN(Number(storedId))) {
+          storeId = Number(storedId);
+        }
+      }
+
       if (!storeId || Number.isNaN(storeId)) {
         const storeRes = await apiClient.get<{ stores: any[] }>('/api/v1/stores/latest');
         const storesArr = storeRes.data?.stores ?? [];
@@ -74,27 +84,32 @@ class ItemService {
         limit: options?.limit ?? 20,
         offset: options?.offset ?? 0,
       };
-      // Only include category_id when > 0 to avoid backend mishandling
+      
+      // The API requires category_id for /items/latest endpoint.
+      // If category_id is provided, use /items/latest.
+      // If NOT provided, use /items/popular which works with just store_id.
       if (options?.category_id && options.category_id > 0) {
         params.category_id = options.category_id;
+        const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/latest', { params });
+        const products = response.data.products;
+        return Array.isArray(products) ? products : [];
+      } else {
+        // Fallback to popular items for the store if no category is selected
+        // This avoids the "category_id field is required" error
+        const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/popular', { params });
+        const products = response.data.products;
+        return Array.isArray(products) ? products : [];
       }
-
-      const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/latest', { params });
-      const products = response.data.products;
-      return Array.isArray(products) ? products : [];
     } catch (error: any) {
-      console.error('Error fetching latest products:', error);
       // Fallback to popular or recommended if latest fails (e.g., 500)
       try {
         const fallbackPopular = await apiClient.get<{ products: Item[] }>('/api/v1/items/popular');
         return fallbackPopular.data.products ?? [];
       } catch (popErr) {
-        console.error('Fallback to popular failed:', popErr);
         try {
           const fallbackRecommended = await apiClient.get<{ products: Item[] }>('/api/v1/items/recommended');
           return fallbackRecommended.data.products ?? [];
         } catch (recErr) {
-          console.error('Fallback to recommended failed:', recErr);
           throw error;
         }
       }
@@ -107,7 +122,6 @@ class ItemService {
       const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/popular');
       return response.data.products;
     } catch (error) {
-      console.error('Error fetching popular products:', error);
       throw error;
     }
   }
@@ -118,7 +132,6 @@ class ItemService {
       const response = await apiClient.get<ItemDetails>(`/api/v1/items/details/${itemId}`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching product details:', error);
       throw error;
     }
   }
@@ -129,7 +142,6 @@ class ItemService {
       const response = await apiClient.get<{ products: Item[] }>(`/api/v1/items/search?name=${query}`);
       return response.data.products;
     } catch (error) {
-      console.error('Error searching products:', error);
       throw error;
     }
   }
@@ -140,7 +152,6 @@ class ItemService {
       const response = await apiClient.get<{ products: Item[] }>(`/api/v1/categories/items/${categoryId}`);
       return response.data.products;
     } catch (error) {
-      console.error('Error fetching products by category:', error);
       throw error;
     }
   }
@@ -151,7 +162,6 @@ class ItemService {
       const response = await apiClient.get<{ cart_items: CartItem[] }>('/api/v1/cart/list');
       return response.data.cart_items;
     } catch (error) {
-      console.error('Error fetching cart items:', error);
       throw error;
     }
   }
@@ -162,7 +172,6 @@ class ItemService {
       const response = await apiClient.post('/api/v1/cart/add', data);
       return response.data;
     } catch (error) {
-      console.error('Error adding item to cart:', error);
       throw error;
     }
   }
@@ -173,7 +182,6 @@ class ItemService {
       const response = await apiClient.post('/api/v1/cart/update', data);
       return response.data;
     } catch (error) {
-      console.error('Error updating cart:', error);
       throw error;
     }
   }
@@ -186,7 +194,6 @@ class ItemService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error removing cart item:', error);
       throw error;
     }
   }
@@ -197,7 +204,6 @@ class ItemService {
       const response = await apiClient.delete('/api/v1/cart/remove');
       return response.data;
     } catch (error) {
-      console.error('Error clearing cart:', error);
       throw error;
     }
   }

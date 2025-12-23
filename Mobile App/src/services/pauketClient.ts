@@ -45,8 +45,6 @@ class PauketClient {
         // Attach required authentication headers
         config.headers['partner-name'] = this.config.partnerName;
         config.headers['api-key'] = this.config.apiKey;
-        
-        console.log('Pauket API Request:', config.method?.toUpperCase(), config.baseURL + config.url);
         return config;
       },
       (error) => {
@@ -57,14 +55,9 @@ class PauketClient {
     // Add response interceptor for error handling
     this.apiClient.interceptors.response.use(
       (response) => {
-        console.log('Pauket API Response:', response.config.url, 'Status:', response.status);
         return response;
       },
       (error) => {
-        console.error('Pauket API Error:', error.config?.url, error.message);
-        if (error.response) {
-          console.error('Error Response:', error.response.data);
-        }
         return Promise.reject(this.normalizeError(error));
       }
     );
@@ -110,7 +103,6 @@ class PauketClient {
       const response = await this.apiClient.get<GetCategoryListResponse>('/get_category_list');
       return response.data;
     } catch (error) {
-      console.error('Get Category List Error:', error);
       throw error;
     }
   }
@@ -121,7 +113,6 @@ class PauketClient {
       const response = await this.apiClient.post<GetCampaignsResponse>('/get_campaigns', params);
       return response.data;
     } catch (error) {
-      console.error('Get Campaigns Error:', error);
       throw error;
     }
   }
@@ -132,7 +123,6 @@ class PauketClient {
       const response = await this.apiClient.post<GetCampaignDetailsResponse>('/get_campaign_details', params);
       return response.data;
     } catch (error) {
-      console.error('Get Campaign Details Error:', error);
       throw error;
     }
   }
@@ -143,7 +133,6 @@ class PauketClient {
       const response = await this.apiClient.post<ActivateCouponResponse>('/activate_coupon', params);
       return response.data;
     } catch (error) {
-      console.error('Activate Coupon Error:', error);
       throw error;
     }
   }

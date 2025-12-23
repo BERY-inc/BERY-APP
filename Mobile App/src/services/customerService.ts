@@ -51,7 +51,6 @@ class CustomerService {
       const response = await apiClient.get<CustomerInfo>('/api/v1/customer/info');
       return response.data;
     } catch (error) {
-      console.error('Error fetching customer info:', error);
       throw error;
     }
   }
@@ -75,7 +74,6 @@ class CustomerService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error updating profile:', error);
       throw error;
     }
   }
@@ -86,7 +84,6 @@ class CustomerService {
       const response = await apiClient.get<{ addresses: Address[] }>('/api/v1/customer/address/list');
       return response.data.addresses;
     } catch (error) {
-      console.error('Error fetching addresses:', error);
       throw error;
     }
   }
@@ -97,7 +94,6 @@ class CustomerService {
       const response = await apiClient.post('/api/v1/customer/address/add', data);
       return response.data;
     } catch (error) {
-      console.error('Error adding address:', error);
       throw error;
     }
   }
@@ -108,7 +104,6 @@ class CustomerService {
       const response = await apiClient.put(`/api/v1/customer/address/update/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error('Error updating address:', error);
       throw error;
     }
   }
@@ -121,7 +116,6 @@ class CustomerService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error deleting address:', error);
       throw error;
     }
   }

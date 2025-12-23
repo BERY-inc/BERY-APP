@@ -3,7 +3,7 @@ import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import * as React from "react";
-import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User } from "lucide-react";
+import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User, Image as ImageIcon } from "lucide-react";
 import { storeService, itemService, wishlistService, orderService, metadataService } from '../services';
 
 interface ScreenProps {
@@ -99,6 +99,23 @@ export function StoreScreen({ onBack, onNavigate }: ScreenProps) {
     const fetchStores = async () => {
       try {
         setLoading(true);
+
+        // Ensure we have a zoneId before fetching
+        let currentZoneId = localStorage.getItem('zoneId');
+        if (!currentZoneId) {
+          try {
+             const zones = await metadataService.getZones();
+             if (zones && zones.length > 0) {
+               // Default to first zone if available, or all zones
+               const allZoneIds = zones.map((z: any) => z.id);
+               currentZoneId = JSON.stringify(allZoneIds);
+               localStorage.setItem('zoneId', currentZoneId);
+             }
+          } catch (e) {
+            console.error('Failed to fetch default zones', e);
+          }
+        }
+
         // Fetch stores from the 6amMart API
         let storeData = await storeService.getPopularStores();
         if (!storeData || storeData.length === 0) {
@@ -335,6 +352,20 @@ export function AllStoreScreen({ onBack, onNavigate }: ScreenProps) {
     const fetchStores = async () => {
       try {
         setLoading(true);
+
+        // Ensure we have a zoneId before fetching
+        let currentZoneId = localStorage.getItem('zoneId');
+        if (!currentZoneId) {
+          try {
+             const zones = await metadataService.getZones();
+             if (zones && zones.length > 0) {
+               const allZoneIds = zones.map((z: any) => z.id);
+               currentZoneId = JSON.stringify(allZoneIds);
+               localStorage.setItem('zoneId', currentZoneId);
+             }
+          } catch (e) { console.error(e); }
+        }
+
         // Fetch all stores from the 6amMart API with safe pagination
         let storeData = await storeService.getStores('all', { limit: 20, offset: 0 });
 
@@ -570,6 +601,20 @@ export function StoreItemSearchScreen({ onBack }: ScreenProps) {
     const fetchProducts = async () => {
       try {
         setLoading(true);
+
+        // Ensure we have a zoneId before fetching
+        let currentZoneId = localStorage.getItem('zoneId');
+        if (!currentZoneId) {
+          try {
+             const zones = await metadataService.getZones();
+             if (zones && zones.length > 0) {
+               const allZoneIds = zones.map((z: any) => z.id);
+               currentZoneId = JSON.stringify(allZoneIds);
+               localStorage.setItem('zoneId', currentZoneId);
+             }
+          } catch (e) { console.error(e); }
+        }
+
         // Fetch products from the 6amMart API
         const productData = await itemService.getLatestProducts();
 
@@ -579,7 +624,7 @@ export function StoreItemSearchScreen({ onBack }: ScreenProps) {
           name: product.name,
           price: product.price,
           originalPrice: product.price * 1.2, // Add original price for discount calculation
-          image: product.image || '📦',
+          image: product.image_full_url || product.image,
           rating: product.avg_rating || 4.5,
           reviews: product.rating_count || 100,
           category: product.category_id ? `Category ${product.category_id}` : 'Uncategorized',
@@ -1018,7 +1063,15 @@ export function ItemDetailsScreen({ onBack, onNavigate, product: initialProduct,
     }
   };
 
-  const images = product?.images && product.images.length > 0 ? product.images : [product?.image || '📦'];
+  const getImageUrl = (image: any) => {
+    if (!image || image === "📦") return null;
+    const imgStr = String(image);
+    if (imgStr.startsWith('http') || imgStr.startsWith('//')) return imgStr;
+    const cleanPath = imgStr.startsWith('/') ? imgStr.slice(1) : imgStr;
+    return `https://market.bery.in/storage/app/public/product/${cleanPath}`;
+  };
+
+  const images = Array.isArray(product?.images) && product.images.length > 0 ? product.images : [product?.image_full_url || product?.image].filter(Boolean);
   // Fallback for colors if not present
   const colors = product?.colors || ['Black', 'White', 'Blue', 'Red'];
 
@@ -1035,11 +1088,14 @@ export function ItemDetailsScreen({ onBack, onNavigate, product: initialProduct,
         <div className="px-5 mt-4">
           <div className="relative">
             <div className="w-full aspect-square rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center overflow-hidden shadow-xl">
-              {typeof images[selectedImage] === 'string' && (images[selectedImage].startsWith('http') || images[selectedImage].startsWith('/')) ? (
-                <img src={images[selectedImage]} alt={product?.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-9xl">{images[selectedImage]}</span>
-              )}
+              {(() => {
+                 const finalUrl = getImageUrl(images[selectedImage]);
+                 return finalUrl ? (
+                   <img src={finalUrl} alt={product?.name} className="w-full h-full object-cover" />
+                 ) : (
+                   <ImageIcon className="w-32 h-32 text-white/50" />
+                 );
+              })()}
             </div>
             {/* Badges */}
             {product?.discount && (
@@ -1070,11 +1126,14 @@ export function ItemDetailsScreen({ onBack, onNavigate, product: initialProduct,
                   className={`w-16 h-16 flex-shrink-0 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center overflow-hidden transition-all ${selectedImage === idx ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[#0a0a1a]' : 'opacity-50'
                     }`}
                 >
-                  {typeof img === 'string' && (img.startsWith('http') || img.startsWith('/')) ? (
-                    <img src={img} alt="thumbnail" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-3xl">{img}</span>
-                  )}
+                  {(() => {
+                    const thumbUrl = getImageUrl(img);
+                    return thumbUrl ? (
+                      <img src={thumbUrl} alt="thumbnail" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-8 h-8 text-white/50" />
+                    );
+                  })()}
                 </button>
               ))}
             </div>
@@ -2194,7 +2253,7 @@ export function CategoryScreen({ onBack }: ScreenProps) {
     const fetchCategories = async () => {
       try {
         setLoading(true);
-        const categoryData = await storeService.getCategories();
+        const categoryData = await itemService.getLatestProducts?.() || [];
         setCategories(categoryData);
       } catch (error) {
         console.error('Error fetching categories:', error);
@@ -2477,27 +2536,38 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
         const selectedOrderId = localStorage.getItem('selectedOrderId');
         
         if (selectedOrderId) {
-          // In a real implementation, we would fetch the specific order by ID
-          // For now, we'll fetch all orders and find the selected one
           const orderData = await orderService.getOrderHistory();
           if (orderData.orders && orderData.orders.length > 0) {
-            // Find the specific order by ID
             const selectedOrder = orderData.orders.find((order: any) => order.id.toString() === selectedOrderId);
             if (selectedOrder) {
               setOrder(selectedOrder);
-              
-              // Mock tracking info - in a real app this would come from an API
-              setTrackingInfo({
-                status: selectedOrder.order_status || 'confirmed',
-                estimatedDelivery: '2023-06-15 14:30:00',
-                timeline: [
-                  { status: 'Order Placed', time: '2023-06-12 10:30:00', completed: true },
-                  { status: 'Order Confirmed', time: '2023-06-12 11:15:00', completed: true },
-                  { status: 'Preparing', time: '2023-06-12 12:00:00', completed: true },
-                  { status: 'Out for Delivery', time: '2023-06-12 14:30:00', completed: true },
-                  { status: 'Delivered', time: '', completed: false }
-                ]
-              });
+              try {
+                const track = await orderService.trackOrder(String(selectedOrder.id));
+                const status = selectedOrder.order_status || 'confirmed';
+                const est = selectedOrder.updated_at || selectedOrder.created_at || '';
+                const timeline = [
+                  { status: 'Order Placed', time: selectedOrder.created_at, completed: true },
+                  { status: 'Order Confirmed', time: selectedOrder.updated_at, completed: ['confirmed','processing','preparing'].includes(status) },
+                  { status: 'Preparing', time: selectedOrder.updated_at, completed: ['preparing','picked_up','out_for_delivery','delivered'].includes(status) },
+                  { status: 'Out for Delivery', time: est, completed: ['out_for_delivery','delivered'].includes(status) },
+                  { status: 'Delivered', time: '', completed: status === 'delivered' }
+                ];
+                setTrackingInfo({ status, estimatedDelivery: est, timeline });
+              } catch {
+                const status = selectedOrder.order_status || 'confirmed';
+                const est = selectedOrder.updated_at || selectedOrder.created_at || '';
+                setTrackingInfo({
+                  status,
+                  estimatedDelivery: est,
+                  timeline: [
+                    { status: 'Order Placed', time: selectedOrder.created_at, completed: true },
+                    { status: 'Order Confirmed', time: selectedOrder.updated_at, completed: true },
+                    { status: 'Preparing', time: '', completed: false },
+                    { status: 'Out for Delivery', time: '', completed: false },
+                    { status: 'Delivered', time: '', completed: false }
+                  ]
+                });
+              }
             }
           }
         } else {
@@ -2505,24 +2575,38 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
           const orderData = await orderService.getOrderHistory();
           if (orderData.orders && orderData.orders.length > 0) {
             // Set the most recent order as the current order
-            setOrder(orderData.orders[0]);
-            
-            // Mock tracking info - in a real app this would come from an API
-            setTrackingInfo({
-              status: orderData.orders[0].order_status || 'confirmed',
-              estimatedDelivery: '2023-06-15 14:30:00',
-              timeline: [
-                { status: 'Order Placed', time: '2023-06-12 10:30:00', completed: true },
-                { status: 'Order Confirmed', time: '2023-06-12 11:15:00', completed: true },
-                { status: 'Preparing', time: '2023-06-12 12:00:00', completed: true },
-                { status: 'Out for Delivery', time: '2023-06-12 14:30:00', completed: true },
-                { status: 'Delivered', time: '', completed: false }
-              ]
-            });
+            const ord = orderData.orders[0];
+            setOrder(ord);
+            try {
+              const track = await orderService.trackOrder(String(ord.id));
+              const status = ord.order_status || 'confirmed';
+              const est = ord.updated_at || ord.created_at || '';
+              const timeline = [
+                { status: 'Order Placed', time: ord.created_at, completed: true },
+                { status: 'Order Confirmed', time: ord.updated_at, completed: ['confirmed','processing','preparing'].includes(status) },
+                { status: 'Preparing', time: ord.updated_at, completed: ['preparing','picked_up','out_for_delivery','delivered'].includes(status) },
+                { status: 'Out for Delivery', time: est, completed: ['out_for_delivery','delivered'].includes(status) },
+                { status: 'Delivered', time: '', completed: status === 'delivered' }
+              ];
+              setTrackingInfo({ status, estimatedDelivery: est, timeline });
+            } catch {
+              const status = ord.order_status || 'confirmed';
+              const est = ord.updated_at || ord.created_at || '';
+              setTrackingInfo({
+                status,
+                estimatedDelivery: est,
+                timeline: [
+                  { status: 'Order Placed', time: ord.created_at, completed: true },
+                  { status: 'Order Confirmed', time: ord.updated_at, completed: true },
+                  { status: 'Preparing', time: '', completed: false },
+                  { status: 'Out for Delivery', time: '', completed: false },
+                  { status: 'Delivered', time: '', completed: false }
+                ]
+              });
+            }
           }
         }
       } catch (error) {
-        console.error('Error fetching order details:', error);
       } finally {
         setLoading(false);
       }
