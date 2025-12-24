@@ -3,8 +3,9 @@ import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import * as React from "react";
-import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User, Image as ImageIcon, X, HelpCircle, Copy } from "lucide-react";
 import { storeService, itemService, wishlistService, orderService, metadataService } from '../services';
+import { toast } from "sonner";
 
 interface ScreenProps {
   onBack: () => void;
@@ -2447,71 +2448,156 @@ export function FavouriteScreen({ onBack }: ScreenProps) {
   );
 }
 
-export function OrderScreen({ onBack, orders = [] as any[], onNavigate }: ScreenProps & { orders?: any[]; onNavigate?: (screen: string) => void; }) {
-  const [orderData, setOrderData] = React.useState<any[]>(orders);
-  const [loading, setLoading] = React.useState(!orders || orders.length === 0);
+export function MyOrdersScreen({ onBack, onNavigate }: ScreenProps) {
+  const [orders, setOrders] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  // Fetch orders from API if none provided
+  // Fetch orders from API
   React.useEffect(() => {
-    if (orders && orders.length > 0) {
-      setOrderData(orders);
-      setLoading(false);
-      return;
-    }
-
     const fetchOrders = async () => {
       try {
         setLoading(true);
         const orderResponse = await orderService.getOrderHistory();
-        setOrderData(orderResponse.orders || []);
+        
+        if (orderResponse && orderResponse.orders) {
+          setOrders(orderResponse.orders);
+        } else {
+          setOrders([]);
+        }
       } catch (error) {
         console.error('Error fetching orders:', error);
-        setOrderData([]);
+        toast.error('Failed to load orders');
+        setOrders([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrders();
-  }, [orders]);
+  }, []);
 
-  const displayOrders = orders && orders.length > 0 ? orders : orderData;
+  const handleViewOrder = (orderId: number) => {
+    localStorage.setItem('selectedOrderId', orderId.toString());
+    onNavigate('order-details');
+  };
 
-  const handleOrderClick = (order: any) => {
-    // Store the selected order in localStorage so OrderDetailsScreen can access it
-    localStorage.setItem('selectedOrderId', order.id.toString());
-    // Navigate to order details screen
-    if (onNavigate) {
-      onNavigate('order-details');
-    }
+  // Format date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
-      <ScreenHeader title="Orders" onBack={onBack} />
-      <div className="px-5 -mt-4 space-y-3">
+      <ScreenHeader title="My Orders" onBack={onBack} />
+      <div className="px-5 -mt-4 space-y-4">
         {loading ? (
           <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
             <p className="text-sm text-slate-300">Loading orders...</p>
           </Card>
-        ) : displayOrders.length === 0 ? (
+        ) : orders.length === 0 ? (
           <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
-            <p className="text-sm text-slate-300">No orders yet.</p>
+            <div className="text-center py-8">
+              <Package className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+              <p className="text-sm text-slate-300 mb-1">No orders yet</p>
+              <p className="text-xs text-slate-400">Your order history will appear here</p>
+            </div>
           </Card>
         ) : (
-          displayOrders.map((o: any) => (
+          orders.map((order) => (
             <Card 
-              key={o.id} 
-              className="p-4 bg-[#1a1a2e] border-slate-700/40 cursor-pointer hover:bg-[#1a1a2e]/80 transition-colors"
-              onClick={() => handleOrderClick(o)}
+              key={order.id} 
+              className="p-4 bg-[#1a1a2e] border-slate-700/40"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-white">Order {o.id}</span>
-                <Badge className="bg-green-500/20 text-green-300 border-0">{o.order_status || 'Confirmed'}</Badge>
+              {/* Order Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <span className="text-sm font-semibold text-white">Order #{order.id}</span>
+                  <p className="text-xs text-slate-400 mt-0.5">Placed on {formatDate(order.created_at)}</p>
+                </div>
+                <Badge className="bg-green-500/20 text-green-300 border-0 text-xs">
+                  {order.order_status?.replace('_', ' ') || 'Confirmed'}
+                </Badge>
               </div>
-              <div className="mt-2 text-xs text-slate-400">Items: {o.order_items?.length || 0}</div>
-              <div className="text-xs text-slate-400">Total: ${o.order_amount?.toFixed?.(2) || '0.00'}</div>
-              <div className="mt-2 text-xs text-blue-400">Tap to view details</div>
+
+              {/* Order Items - Show first 2 items */}
+              <div className="space-y-2 mb-3">
+                {order.order_items && order.order_items.length > 0 ? (
+                  order.order_items.slice(0, 2).map((item: any, index: number) => (
+                    <div key={index} className="flex items-start gap-3 p-2 bg-[#0f0f1a] rounded-lg">
+                      {/* Item Image */}
+                      <div className="w-16 h-16 rounded-lg bg-slate-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {item.item?.image ? (
+                          <img
+                            src={item.item.image}
+                            alt={item.item?.name || item.item_details}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = '<div class="text-2xl">📦</div>';
+                            }}
+                          />
+                        ) : (
+                          <Package className="w-6 h-6 text-slate-400" />
+                        )}
+                      </div>
+
+                      {/* Item Details */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm text-white font-semibold mb-1">
+                          {item.item?.name || item.item_details || 'Order Item'}
+                        </h4>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-slate-400">Qty: {item.quantity || 1}</span>
+                          <span className="text-sm text-white font-semibold">
+                            ${(item.price || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400">No items found</p>
+                )}
+                
+                {/* Show more items indicator */}
+                {order.order_items && order.order_items.length > 2 && (
+                  <p className="text-xs text-blue-400 pl-1">
+                    +{order.order_items.length - 2} more item{order.order_items.length - 2 > 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+
+              {/* Order Summary */}
+              <div className="border-t border-slate-700/50 pt-3 space-y-2 mb-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-300 font-medium">Total Items:</span>
+                  <span className="text-sm text-white font-semibold">{order.order_items?.length || 0} items</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-300 font-medium">Order Total:</span>
+                  <span className="text-lg text-white font-bold">
+                    ${(order.order_amount || 0).toFixed(2)}
+                  </span>
+                </div>
+                {order.id && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Tracking ID:</span>
+                    <span className="text-xs text-blue-400 font-medium">#{order.id}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* View Details Button */}
+              <Button
+                onClick={() => handleViewOrder(order.id)}
+                variant="outline"
+                size="sm"
+                className="w-full bg-blue-600/10 border-blue-500/30 text-blue-400 hover:bg-blue-600/20 font-medium"
+              >
+                View Full Details
+              </Button>
             </Card>
           ))
         )}
@@ -2520,11 +2606,14 @@ export function OrderScreen({ onBack, orders = [] as any[], onNavigate }: Screen
   );
 }
 
+
 export function OrderDetailsScreen({ onBack }: ScreenProps) {
   const [order, setOrder] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [trackingInfo, setTrackingInfo] = React.useState<any>(null);
   const [showTracking, setShowTracking] = React.useState(false);
+  const [userRating, setUserRating] = React.useState<number>(0);
+  const [showCancelModal, setShowCancelModal] = React.useState(false);
 
   // Fetch order details from API
   React.useEffect(() => {
@@ -2598,6 +2687,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                 timeline: [
                   { status: 'Order Placed', time: ord.created_at, completed: true },
                   { status: 'Order Confirmed', time: ord.updated_at, completed: true },
+                  { status: 'Order Confirmed', time: ord.updated_at, completed: true },
                   { status: 'Preparing', time: '', completed: false },
                   { status: 'Out for Delivery', time: '', completed: false },
                   { status: 'Delivered', time: '', completed: false }
@@ -2630,6 +2720,28 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
     return new Date(dateString).toLocaleString();
   };
 
+  // Handle rating
+  const handleRating = (rating: number) => {
+    setUserRating(rating);
+    // TODO: Submit rating to API
+    toast.success(`Thank you for rating ${rating} stars!`);
+  };
+
+  // Handle cancel order
+  const handleCancelOrder = () => {
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelOrder = async () => {
+    try {
+      // TODO: Call API to cancel order
+      toast.success('Order cancellation requested');
+      setShowCancelModal(false);
+    } catch (error) {
+      toast.error('Failed to cancel order');
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Order Details" onBack={onBack} />
@@ -2654,7 +2766,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                 <p className="text-white font-semibold mt-1">Total: {formatCurrency(order.order_amount || 0)}</p>
                 {order.address && <p>Delivery to: {order.address}</p>}
               </div>
-              
+                
               {/* Tracking Button */}
               <Button 
                 onClick={toggleTracking}
@@ -2664,18 +2776,18 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                 {showTracking ? 'Hide Tracking' : 'Track Order'}
               </Button>
             </Card>
-
+  
             {/* Order Tracking Section */}
             {showTracking && trackingInfo && (
               <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
                 <h3 className="text-white font-semibold text-sm mb-3">Order Tracking</h3>
-                
+                  
                 {/* Estimated Delivery */}
                 <div className="mb-4 p-3 bg-blue-500/10 rounded-lg">
                   <p className="text-xs text-slate-400">Estimated Delivery</p>
                   <p className="text-sm text-white">{formatDate(trackingInfo.estimatedDelivery)}</p>
                 </div>
-                
+                  
                 {/* Tracking Timeline */}
                 <div className="space-y-3">
                   {trackingInfo.timeline.map((step: any, index: number) => (
@@ -2706,7 +2818,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                 </div>
               </Card>
             )}
-
+  
             {/* Items List */}
             <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
               <h3 className="text-white font-semibold text-sm mb-3">Items Purchased</h3>
@@ -2727,7 +2839,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                         <Package className="w-6 h-6 text-slate-400" />
                       </div>
                     )}
-                    
+                      
                     {/* Item Details */}
                     <div className="flex-1">
                       <h4 className="text-sm text-white font-medium">
@@ -2746,7 +2858,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                           {formatCurrency(item.price || 0)}
                         </p>
                       </div>
-                      
+                        
                       {/* Item Price Breakdown */}
                       <div className="mt-2 pt-2 border-t border-slate-700/50">
                         <div className="flex justify-between text-xs">
@@ -2772,7 +2884,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                   </div>
                 ))}
               </div>
-              
+                
               {/* Order Totals */}
               <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-2">
                 <div className="flex justify-between text-sm">
@@ -2797,7 +2909,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                 </div>
               </div>
             </Card>
-
+  
             {/* Delivery Information */}
             <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
               <h3 className="text-white font-semibold text-sm mb-3">Delivery Information</h3>
@@ -2830,6 +2942,51 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
               </div>
             </Card>
 
+            {/* Rate Your Order */}
+            <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+              <h3 className="text-white font-semibold text-sm mb-3">Rate Your Experience</h3>
+              <p className="text-xs text-slate-400 mb-3">How was your order experience?</p>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => handleRating(star)}
+                    className="p-1 hover:scale-110 transition-transform"
+                  >
+                    <Star 
+                      className={`w-8 h-8 ${
+                        star <= userRating 
+                          ? 'fill-yellow-400 text-yellow-400' 
+                          : 'text-slate-600'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+              {userRating > 0 && (
+                <p className="text-xs text-center text-green-400">Thank you for your feedback!</p>
+              )}
+            </Card>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                onClick={handleCancelOrder}
+                variant="outline"
+                className="bg-transparent border-red-500/30 text-red-400 hover:bg-red-600/10"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel Order
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-transparent border-blue-500/30 text-blue-400 hover:bg-blue-600/10"
+              >
+                <HelpCircle className="w-4 h-4 mr-2" />
+                Get Help
+              </Button>
+            </div>
+  
             {/* Payment Information */}
             <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
               <h3 className="text-white font-semibold text-sm mb-3">Payment Information</h3>
@@ -2861,6 +3018,33 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
           </Card>
         )}
       </div>
+
+      {/* Cancel Order Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-5">
+          <Card className="p-5 bg-[#1a1a2e] border-slate-700/40 max-w-sm w-full">
+            <h3 className="text-white font-semibold text-lg mb-2">Cancel Order?</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              Are you sure you want to cancel this order? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowCancelModal(false)}
+                variant="outline"
+                className="flex-1 bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+              >
+                Keep Order
+              </Button>
+              <Button
+                onClick={confirmCancelOrder}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              >
+                Yes, Cancel
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

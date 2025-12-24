@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import { ArrowLeft, ShoppingCart, Wallet, Shield, X } from "lucide-react";
+import { Input } from "./ui/input";
+import { ArrowLeft, ShoppingCart, Wallet, Shield, X, MapPin, Phone, Edit2 } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { Haptics, NotificationType } from "@capacitor/haptics";
@@ -134,6 +135,14 @@ export function CheckoutPage({
 }: CheckoutPageProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Delivery information state
+  const [deliveryAddress, setDeliveryAddress] = useState("123 Main Street, New York, NY 10001");
+  const [phoneNumber, setPhoneNumber] = useState("+1 (555) 123-4567");
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [tempAddress, setTempAddress] = useState(deliveryAddress);
+  const [tempPhone, setTempPhone] = useState(phoneNumber);
 
   // Calculate tax (10%)
   const subtotalUSD = cartItems.reduce((sum, item) => {
@@ -145,6 +154,39 @@ export function CheckoutPage({
   const shippingUSD = 0; // Free shipping
   const finalTotalUSD = subtotalUSD + taxUSD + shippingUSD;
   const finalTotalBery = finalTotalUSD / 8.9;
+
+  // Handler functions for editing delivery details
+  const handleSaveAddress = () => {
+    if (tempAddress.trim()) {
+      setDeliveryAddress(tempAddress);
+      localStorage.setItem('checkoutAddress', tempAddress);
+      setIsEditingAddress(false);
+      toast.success("Address updated successfully");
+    } else {
+      toast.error("Address cannot be empty");
+    }
+  };
+
+  const handleCancelAddress = () => {
+    setTempAddress(deliveryAddress);
+    setIsEditingAddress(false);
+  };
+
+  const handleSavePhone = () => {
+    if (tempPhone.trim()) {
+      setPhoneNumber(tempPhone);
+      localStorage.setItem('checkoutPhone', tempPhone);
+      setIsEditingPhone(false);
+      toast.success("Phone number updated successfully");
+    } else {
+      toast.error("Phone number cannot be empty");
+    }
+  };
+
+  const handleCancelPhone = () => {
+    setTempPhone(phoneNumber);
+    setIsEditingPhone(false);
+  };
 
   const handleConfirmPurchase = async () => {
     // Close the modal first
@@ -206,8 +248,20 @@ export function CheckoutPage({
             <div className="space-y-4 mb-6">
               {cartItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center">
-                    <span className="text-2xl">{item.image}</span>
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center overflow-hidden">
+                    {item.image ? (
+                      <img 
+                        src={item.image} 
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.innerHTML = '<span class="text-2xl">🛒</span>';
+                        }}
+                      />
+                    ) : (
+                      <span className="text-2xl">🛒</span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm text-white font-medium truncate">{item.name}</h3>
@@ -223,8 +277,111 @@ export function CheckoutPage({
               ))}
             </div>
 
+            {/* Delivery Address Section */}
+            <div className="pt-4 border-t border-slate-700/40">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm text-white font-semibold">Delivery Address</h3>
+                </div>
+                {!isEditingAddress && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingAddress(true)}
+                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 h-8 px-2"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 mr-1" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+              
+              {isEditingAddress ? (
+                <div className="space-y-2">
+                  <Input
+                    value={tempAddress}
+                    onChange={(e) => setTempAddress(e.target.value)}
+                    placeholder="Enter delivery address"
+                    className="bg-[#1a1a2e] border-slate-600/40 text-white text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveAddress}
+                      size="sm"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-8"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      onClick={handleCancelAddress}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-transparent border-slate-600/40 text-slate-300 hover:bg-slate-800/50 h-8"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-300 leading-relaxed">{deliveryAddress}</p>
+              )}
+            </div>
+
+            {/* Phone Number Section */}
+            <div className="pt-4 border-t border-slate-700/40 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm text-white font-semibold">Contact Number</h3>
+                </div>
+                {!isEditingPhone && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingPhone(true)}
+                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 h-8 px-2"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 mr-1" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+              
+              {isEditingPhone ? (
+                <div className="space-y-2">
+                  <Input
+                    value={tempPhone}
+                    onChange={(e) => setTempPhone(e.target.value)}
+                    placeholder="Enter phone number"
+                    type="tel"
+                    className="bg-[#1a1a2e] border-slate-600/40 text-white text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSavePhone}
+                      size="sm"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-8"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      onClick={handleCancelPhone}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-transparent border-slate-600/40 text-slate-300 hover:bg-slate-800/50 h-8"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-300 leading-relaxed">{phoneNumber}</p>
+              )}
+            </div>
+
             {/* Cost Breakdown */}
-            <div className="space-y-2 pt-4 border-t border-slate-700/40">
+            <div className="space-y-2 pt-4 border-t border-slate-700/40 mt-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-300">Subtotal</span>
                 <span className="text-sm text-white">${subtotalUSD.toFixed(2)}</span>
