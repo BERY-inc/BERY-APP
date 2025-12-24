@@ -58,7 +58,7 @@ import {
   CategoryItemScreen,
   GlobalSearchScreen,
   FavouriteScreen,
-  OrderScreen,
+  MyOrdersScreen,
   OrderDetailsScreen,
   OrderTrackingScreen,
   GuestTrackOrderScreen,
@@ -661,9 +661,41 @@ export default function App() {
     setCurrentScreen("dashboard");
   };
 
-  const handleNavigate = (screen: string) => {
+  const handleNavigate = async (screen: string) => {
+    console.log(`🧭Navigating to: ${screen}`);
     setNavigationHistory([...navigationHistory, screen as Screen]);
     setCurrentScreen(screen as Screen);
+    
+    // Fetch cart items when navigating to shopping-cart
+    if (screen === 'shopping-cart') {
+      try {
+        console.log("🛒 Fetching cart items...");
+        const backendCart = await itemService.getCartItems();
+        console.log("✅ Backend cart:", backendCart);
+        
+        if (backendCart && Array.isArray(backendCart) && backendCart.length > 0) {
+          const mapped: CartItem[] = backendCart.map((ci) => ({
+            id: Number(ci.item_id),
+            name: ci.item?.name ?? "Unknown Item",
+            price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+            usdPrice: `$${(((ci.price ?? 0) / 8.9)).toFixed(2)}`,
+            seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : "Store",
+            image: ci.item?.image ?? "📦",
+            icon: undefined,
+            quantity: Number(ci.quantity ?? 1),
+            type: "product",
+          }));
+          setCartItems(mapped);
+          console.log(`✅ Loaded ${mapped.length} items`);
+        } else {
+          console.log("⚠️ Cart is empty");
+          setCartItems([]);
+        }
+      } catch (error) {
+        console.error("❌ Cart fetch error:", error);
+      }
+    }
+    
     // Sync to URL for deep linkable screens
     switch (screen) {
       case "marketplace":
@@ -688,7 +720,6 @@ export default function App() {
         navigate(`/order-details${transactionId ? `/${transactionId}` : ""}`);
         break;
       default:
-        // Leave other screens state-driven for now
         break;
     }
   };
@@ -714,9 +745,30 @@ export default function App() {
   };
 
   const handleAddToCart = async (product: any, quantity: number) => {
+    console.log("=== ADD TO CART ===");
+    console.log("Product:", product);
+    console.log("Quantity:", quantity);
+    console.log("Product ID:", product.id);
+    console.log("Auth Token:", localStorage.getItem('authToken') ? 'Present' : 'Missing');
+    
+    // Temporary visual feedback
+    console.log("%c🛒 ADD TO CART TRIGGERED!", "color: green; font-size: 20px; font-weight: bold;");
+    
     try {
-      await itemService.addToCart({ item_id: Number(product.id), quantity: Number(quantity) });
+      // Add to backend cart
+      console.log("Attempting to add to backend cart...");
+      const addResponse = await itemService.addToCart({ 
+        item_id: Number(product.id), 
+        quantity: Number(quantity) 
+      });
+      console.log("Backend add response:", addResponse);
+      
+      // Fetch updated cart from backend
+      console.log("Fetching updated cart...");
       const backendCart = await itemService.getCartItems();
+      console.log("Backend cart items:", backendCart);
+      
+      // Map backend cart to local cart format
       const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
         id: Number(ci.item_id),
         name: ci.item?.name ?? product.name,
@@ -728,8 +780,28 @@ export default function App() {
         quantity: Number(ci.quantity ?? quantity),
         type: isServiceDetail ? "service" : "product",
       }));
+      
       setCartItems(mapped);
-    } catch (e) {
+      console.log("%c✅ SUCCESS! Cart updated successfully!", "color: green; font-size: 16px; font-weight: bold;");
+      console.log("Total items in cart:", mapped.length);
+      
+      try {
+        toast.success("Added to cart!", {
+          description: `${product.name || 'Item'} (${quantity}x) added successfully.`,
+        });
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
+      
+    } catch (e: any) {
+      console.error("%c❌ ADD TO CART ERROR", "color: red; font-size: 16px; font-weight: bold;");
+      console.error("Error:", e);
+      console.error("Error message:", e.message);
+      console.error("Error response:", e.response?.data);
+      console.error("Error status:", e.response?.status);
+      
+      // Fallback to local cart on error
+      console.log("Falling back to local cart...");
       const existingItem = cartItems.find(item => item.id === product.id);
       if (existingItem) {
         setCartItems(
@@ -753,7 +825,19 @@ export default function App() {
         };
         setCartItems([...cartItems, newItem]);
       }
+      
+      console.log("%c⚠️ Added to local cart (backend failed)", "color: orange; font-size: 16px;");
+      
+      try {
+        toast.warning("Added to local cart", {
+          description: `${product.name || 'Item'} added locally. Server sync failed: ${e.message}`,
+        });
+      } catch (toastError) {
+        console.error("Toast error:", toastError);
+      }
     }
+    
+    console.log("====================");
   };
 
   const handleBuyNow = (product: any, quantity: number) => {
@@ -848,6 +932,14 @@ export default function App() {
       const realCartItems = await itemService.getCartItems();
       console.log("Real cart items:", realCartItems);
       
+      if (!realCartItems || realCartItems.length === 0) {
+        console.error("No cart items found");
+        toast.error("Cart is empty", {
+          description: "Please add items to cart before placing order.",
+        });
+        return;
+      }
+      
       // Calculate total from real cart items
       const cartTotal = realCartItems.reduce((sum, item) => {
         return sum + (item.price * item.quantity);
@@ -861,50 +953,71 @@ export default function App() {
       // Get user data for contact information
       const userProfile = await authService.getProfile();
       console.log("User profile:", userProfile);
-            // Get user address information if available
-      let address = "123 Main St";
+      
+      // Get user address information from checkout or profile
+      let address = localStorage.getItem('checkoutAddress') || "123 Main St";
+      let phoneNumber = localStorage.getItem('checkoutPhone') || userProfile.phone || '';
       let longitude = -73.9857;
       let latitude = 40.7484;
       
-      // Try to get actual user address from profile if available
-      if (userProfile.address) {
+      // Try to get actual user address from profile if not set in checkout
+      if (!localStorage.getItem('checkoutAddress') && userProfile.address) {
         address = userProfile.address;
       }
       
       const orderData = {
-        payment_method: "wallet",
-        order_type: "delivery",
+        payment_method: "wallet" as const,
+        order_type: "delivery" as const,
         store_id: storeId,
-        distance: 5.5, // Placeholder - would be calculated
+        distance: 5.5,
         address: address,
         longitude: longitude,
         latitude: latitude,
         order_amount: cartTotal,
         cutlery: false,
         contact_person_name: (userProfile.f_name || '') + ' ' + (userProfile.l_name || ''),
-        contact_person_number: userProfile.phone || '',
+        contact_person_number: phoneNumber,
         contact_person_email: userProfile.email || '',
       };
       
       console.log("Order data being sent:", orderData);
+      console.log("API Base URL:", (import.meta as any).env?.VITE_API_BASE_URL || 'https://market.bery.in/');
+      console.log("Auth Token:", localStorage.getItem('authToken') ? 'Present' : 'Missing');
+      
       const orderResponse = await orderService.placeOrder(orderData);
-      console.log("Order placed response:", orderResponse);
+      console.log("Order placed successfully!");
+      console.log("Order response:", orderResponse);
+      
+      if (orderResponse && orderResponse.order_id) {
+        console.log("Order ID from server:", orderResponse.order_id);
+        toast.success("Order placed successfully!", {
+          description: `Order #${orderResponse.order_id} has been created.`,
+        });
+      } else {
+        console.log("Order response (no order_id):", orderResponse);
+        toast.success("Order confirmed!", {
+          description: "Your payment has been processed successfully.",
+        });
+      }
       
       // Refresh orders to ensure the new order appears in "My Orders"
       await refreshOrders();
       
-      toast.success("Order confirmed!", {
-        description: "Your payment has been processed successfully.",
-      });
     } catch (error: any) {
-      console.error("Error placing order:", error);
+      console.error("=== ORDER PLACEMENT ERROR ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
       console.error("Error response:", error.response?.data);
       console.error("Error status:", error.response?.status);
       console.error("Error headers:", error.response?.headers);
+      console.error("=============================");
       
       toast.error("Order placement failed", {
-        description: "There was an issue placing your order. Please try again.",
+        description: error.message || "There was an issue placing your order. Please try again.",
       });
+      
+      // Don't navigate to success if order failed
+      return;
     }    
     handleNavigate("purchase-success");
 
@@ -1249,7 +1362,12 @@ export default function App() {
           <CampaignScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "item-details-new" && (
-          <ItemDetailsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
+          <ItemDetailsScreen 
+            onBack={handleBackToDashboard} 
+            onNavigate={handleNavigate}
+            onAddToCart={handleAddToCart}
+            onBuyNow={handleBuyNow}
+          />
         )}
         {currentScreen === "items-view-all" && (
           <ItemViewAllScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
@@ -1273,7 +1391,7 @@ export default function App() {
           <FavouriteScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "orders" && (
-          <OrderScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} orders={orders} />
+          <MyOrdersScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "order-details" && (
           <OrderDetailsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />

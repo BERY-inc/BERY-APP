@@ -41,6 +41,17 @@ export function ShoppingCart({
 }: ShoppingCartProps) {
   const [removingId, setRemovingId] = useState<number | null>(null);
 
+  // Ensure cartItems is a valid array
+  const safeCartItems: CartItem[] = Array.isArray(cartItems) ? cartItems : [];
+  const isEmpty = safeCartItems.length === 0;
+  
+  console.log("🛒 ShoppingCart render:", {
+    cartItems: cartItems,
+    safeLength: safeCartItems.length,
+    isEmpty: isEmpty,
+    cartItemCount: cartItemCount
+  });
+
   const handleRemove = (id: number) => {
     setRemovingId(id);
     setTimeout(() => {
@@ -50,21 +61,21 @@ export function ShoppingCart({
   };
 
   // Calculate totals
-  const subtotalBery = cartItems.reduce((sum, item) => {
-    const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
-    return sum + price * item.quantity;
+  const subtotalBery = safeCartItems.reduce((sum, item) => {
+    const price = parseFloat(String(item.price || '0').replace("₿", "").replace("From", "").trim());
+    return sum + price * (item.quantity || 1);
   }, 0);
 
   const subtotalUSD = subtotalBery / 8.9;
-  const estimatedTax = subtotalUSD * 0.1; // 10% tax
+  const estimatedTax = subtotalUSD * 0.1;
   const totalUSD = subtotalUSD + estimatedTax;
   const totalBery = totalUSD * 8.9;
 
   return (
-    <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-32">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] px-5 pt-14 pb-6">
-        <div className="flex items-center gap-4 mb-2">
+    <div className="h-screen flex flex-col bg-[#0a0a1a]">
+      {/* Header - Fixed */}
+      <div className="flex-shrink-0 bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] px-5 pt-14 pb-6">
+        <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
@@ -73,23 +84,26 @@ export function ShoppingCart({
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1
-            className="text-xl text-white"
-            style={{ fontFamily: "Inter, sans-serif", fontWeight: 700 }}
-          >
-            Shopping Cart
-          </h1>
+          <div className="flex-1">
+            <h1
+              className="text-xl text-white"
+              style={{ fontFamily: "Inter, sans-serif", fontWeight: 700 }}
+            >
+              Shopping Cart
+            </h1>
+            {safeCartItems.length > 0 && (
+              <p className="text-sm text-blue-200 mt-1">
+                {safeCartItems.length} {safeCartItems.length === 1 ? "item" : "items"}
+              </p>
+            )}
+          </div>
         </div>
-        {cartItems.length > 0 && (
-          <p className="text-sm text-blue-200 ml-14">
-            {cartItems.length} {cartItems.length === 1 ? "item" : "items"}
-          </p>
-        )}
       </div>
 
-      {/* Content */}
-      <div className="px-5 py-6">
-        {cartItems.length === 0 ? (
+      {/* Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto px-5 -mt-4">
+        <div className="py-6">
+        {isEmpty ? (
           <EmptyState
             type="cart"
             onAction={() => onNavigate("marketplace")}
@@ -99,7 +113,7 @@ export function ShoppingCart({
             {/* Cart Items */}
             <div className="mb-6 space-y-3">
               <AnimatePresence>
-                {cartItems.map((item) => (
+                {safeCartItems.map((item) => (
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 1, x: 0 }}
@@ -112,19 +126,42 @@ export function ShoppingCart({
                     >
                       <div className="flex gap-4">
                         {/* Image */}
-                        <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center flex-shrink-0">
-                          {item.type === "product" ? (
-                            <span className="text-3xl">{item.image}</span>
-                          ) : item.icon ? (
-                            (() => {
+                        <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-blue-600/20 to-blue-800/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {(() => {
+                            // Handle different image types
+                            if (item.image && typeof item.image === 'string') {
+                              // Check if it's a URL
+                              if (item.image.startsWith('http') || item.image.startsWith('/')) {
+                                return (
+                                  <img
+                                    src={item.image}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      if (e.currentTarget.parentElement) {
+                                        e.currentTarget.parentElement.innerHTML = '<div class="text-3xl">📦</div>';
+                                      }
+                                    }}
+                                  />
+                                );
+                              } else {
+                                // It's an emoji or text
+                                return <span className="text-3xl">{item.image}</span>;
+                              }
+                            } else if (item.icon) {
+                              // Use icon component
                               const Icon = item.icon;
                               return (
                                 <div className="w-full h-full bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center">
                                   <Icon className="w-8 h-8 text-white" />
                                 </div>
                               );
-                            })()
-                          ) : null}
+                            } else {
+                              // Fallback to package icon
+                              return <span className="text-3xl">📦</span>;
+                            }
+                          })()}
                         </div>
 
                         {/* Details */}
@@ -283,18 +320,24 @@ export function ShoppingCart({
             </Card>
 
             {/* Checkout Button */}
-            <Button
-              onClick={onCheckout}
-              className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white"
-            >
-              <ShoppingCart className="w-5 h-5 mr-2" />
-              Proceed to Checkout
-            </Button>
+            <div className="pb-24">
+              <Button
+                onClick={onCheckout}
+                className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white"
+              >
+                <ShoppingCart className="w-5 h-5 mr-2" />
+                Proceed to Checkout
+              </Button>
+            </div>
           </>
         )}
+        </div>
       </div>
 
-      <BottomNavigation currentScreen="marketplace" onNavigate={onNavigate} cartItemCount={cartItemCount} />
+      {/* Bottom Navigation - Fixed */}
+      <div className="flex-shrink-0">
+        <BottomNavigation currentScreen="marketplace" onNavigate={onNavigate} cartItemCount={cartItemCount} />
+      </div>
     </div>
   );
 }
