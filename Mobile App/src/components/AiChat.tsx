@@ -5,6 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ArrowLeft, Send, Mic, Paperclip, MoreVertical, Check, CheckCheck, Search, Sparkles, Wifi, WifiOff } from "lucide-react";
 import { motion } from "motion/react";
 import { BottomNavigation } from "./BottomNavigation";
+import { chatService, Conversation, ChatMessage } from "../services/chatService";
+import { toast } from "sonner";
 
 interface AiChatProps {
   onBack: () => void;
@@ -19,6 +21,7 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   status?: "sent" | "delivered" | "read";
+  images?: string[]; // Array of image URLs
 }
 
 interface Contact {
@@ -30,6 +33,10 @@ interface Contact {
   unread: number;
   isAI?: boolean;
   isOnline?: boolean;
+  // Backend fields
+  conversationId?: number;
+  receiverType?: 'admin' | 'vendor' | 'delivery_man';
+  receiverId?: number;
 }
 
 interface WebSocketMessage {
@@ -44,61 +51,26 @@ interface WebSocketMessage {
 export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://localhost:8080" }: AiChatProps) {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false); // Using this for general connectivity status
   const [connectionError, setConnectionError] = useState<string>("");
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
 
-  const contacts: Contact[] = [
-    {
-      id: "bery-ai",
-      name: "Bery AI Assistant",
-      lastMessage: "I'm here to help with your finances!",
-      timestamp: "Now",
-      unread: 0,
-      isAI: true,
-      isOnline: true,
-    },
-    {
-      id: "1",
-      name: "Sarah Johnson",
-      avatar: "https://i.pravatar.cc/150?img=45",
-      lastMessage: "Thanks for the payment!",
-      timestamp: "10:45 AM",
-      unread: 2,
-      isOnline: true,
-    },
-    {
-      id: "2",
-      name: "Michael Chen",
-      avatar: "https://i.pravatar.cc/150?img=33",
-      lastMessage: "Can you send me the invoice?",
-      timestamp: "Yesterday",
-      unread: 0,
-      isOnline: false,
-    },
-    {
-      id: "3",
-      name: "Emma Wilson",
-      avatar: "https://i.pravatar.cc/150?img=44",
-      lastMessage: "Perfect, I'll send it tomorrow",
-      timestamp: "Yesterday",
-      unread: 1,
-      isOnline: true,
-    },
-    {
-      id: "4",
-      name: "James Rodriguez",
-      avatar: "https://i.pravatar.cc/150?img=12",
-      lastMessage: "How much did you invest?",
-      timestamp: "2 days ago",
-      unread: 0,
-      isOnline: false,
-    },
-  ];
+  // Initial AI Contact
+  const aiContact: Contact = {
+    id: "bery-ai",
+    name: "Bery AI Assistant",
+    lastMessage: "I'm here to help with your finances!",
+    timestamp: "Now",
+    unread: 0,
+    isAI: true,
+    isOnline: true,
+  };
 
   const [messages, setMessages] = useState<{ [contactId: string]: Message[] }>({
     "bery-ai": [
@@ -110,36 +82,206 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
         status: "read",
       },
     ],
-    "1": [
-      {
-        id: 1,
-        text: "Hey! Did you receive the payment?",
-        isUser: true,
-        timestamp: new Date(Date.now() - 120000),
-        status: "read",
-      },
-      {
-        id: 2,
-        text: "Yes! Just got it. Thanks so much! 💙",
-        isUser: false,
-        timestamp: new Date(Date.now() - 60000),
-      },
-      {
-        id: 3,
-        text: "Thanks for the payment!",
-        isUser: false,
-        timestamp: new Date(Date.now() - 30000),
-      },
-    ],
   });
 
   const [inputValue, setInputValue] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // WebSocket connection management
+  // Fetch conversations on mount
   useEffect(() => {
-    connectWebSocket();
+    fetchConversations();
+    // Set up polling for new conversations list every 30 seconds
+    const interval = setInterval(fetchConversations, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
+  const fetchConversations = async () => {
+    try {
+      setIsLoadingContacts(true);
+      const data = await chatService.getConversations();
+      
+      const mappedContacts: Contact[] = data.conversations.map((conv: Conversation) => {
+        let name = "Unknown";
+        let avatar = "";
+        let receiverId = 0;
+        let receiverType: 'admin' | 'vendor' | 'delivery_man' = 'admin'; // Default
+
+        // Determine remote party details
+        // If current user is sender, remote is receiver. If current user is receiver, remote is sender.
+        // However, the API returns 'sender' and 'receiver' objects.
+        // Usually the user ID matches one of them.
+        // For simplicity, we assume the 'receiver' or 'sender' object that is NOT the current user is the contact.
+        // But since we don't easily have current user ID here without authService, we can infer from structure or usage.
+        // In the backend controller, 'conversations' query checks where sender_id or receiver_id is current user.
+        
+        // Let's rely on checking if sender_type is 'customer' -> remote is receiver.
+        // If receiver_type is 'customer' -> remote is sender.
+        
+        // Wait, backend logic:
+        // $q->where(['sender_id' => $sender->id])->orWhere(['receiver_id' => $sender->id]);
+        
+        // We need to identify which one is the "other" person.
+        // Assuming the app is for 'customer'.
+        
+        let remoteUser;
+        if (conv.sender_type === 'customer') {
+           remoteUser = conv.receiver;
+           receiverType = conv.receiver_type as any;
+           receiverId = conv.receiver_id;
+        } else {
+           remoteUser = conv.sender;
+           receiverType = conv.sender_type as any; // If sender is vendor, we are replying to vendor
+           receiverId = conv.sender_id;
+        }
+
+        if (remoteUser) {
+           name = `${remoteUser.f_name || ''} ${remoteUser.l_name || ''}`.trim();
+           avatar = remoteUser.image || "";
+           // If remoteUser is admin (receiver_id=0 or admin_id present), handle name
+           if (receiverType === 'admin' || !receiverId) {
+             name = "Support Admin";
+           }
+        } else {
+           if (receiverType === 'admin') name = "Support Admin";
+           else name = "Unknown User";
+        }
+
+        return {
+          id: conv.id.toString(),
+          name: name,
+          avatar: avatar, // You might need to prepend base URL if it's relative
+          lastMessage: conv.last_message?.message || "No messages",
+          timestamp: conv.last_message_time ? new Date(conv.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
+          unread: conv.unread_message_count || 0,
+          isOnline: false, // Cannot determine easily without WS
+          conversationId: conv.id,
+          receiverType: receiverType,
+          receiverId: receiverId
+        };
+      });
+
+      setContacts([aiContact, ...mappedContacts]);
+      setIsConnected(true);
+    } catch (error) {
+      console.error("Failed to fetch conversations", error);
+      // Fallback to just AI contact on error
+      setContacts([aiContact]);
+      // setConnectionError("Failed to load chats");
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  };
+
+  // Poll for messages when a contact is selected
+  useEffect(() => {
+    if (selectedContact && !selectedContact.isAI) {
+      fetchMessages(selectedContact);
+      
+      // Poll every 5 seconds for new messages
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = setInterval(() => {
+        fetchMessages(selectedContact, true); // silent update
+      }, 5000);
+    } else {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
+  }, [selectedContact]);
+
+  const fetchMessages = async (contact: Contact, silent = false) => {
+    try {
+      if (!contact.conversationId && !contact.receiverId) return;
+
+      const data = await chatService.getMessages(
+        contact.conversationId,
+        contact.receiverType === 'vendor' ? contact.receiverId : undefined,
+        contact.receiverType === 'delivery_man' ? contact.receiverId : undefined,
+        contact.receiverType === 'admin' ? 1 : undefined // Admin ID logic
+      );
+
+      const mappedMessages: Message[] = data.messages.map((msg: ChatMessage) => ({
+        id: msg.id,
+        text: msg.message,
+        isUser: msg.sender_id !== contact.receiverId, // Assumption: if sender is not the contact (receiver), it's us. 
+        // Better check: msg.sender_id === currentUserId. But we assume we are the 'customer'. 
+        // Actually, for incoming messages, sender_id is the remote user. 
+        // If msg.sender_id === contact.receiverId (the remote user ID), then isUser is false.
+        // Wait, contact.receiverId is the ID of the remote entity (Vendor ID, DM ID).
+        // The message.sender_id refers to UserInfo ID usually. 
+        // Let's look at backend: 
+        // $message->sender_id = $sender->id; (Sender is UserInfo).
+        // If we are customer, our UserInfo ID is different from Vendor's UserInfo ID.
+        // We need to know OUR UserInfo ID to be sure.
+        // However, usually `isUser` means "Is Current Logged In User".
+        // If `msg.sender_id` matches the conversation's `sender_id` (if we created it) OR `receiver_id` (if they created it)...
+        // Simpler: We know `contact` is the OTHER person.
+        // If `msg.sender_id` matches the `contact`'s UserInfo ID, it's them.
+        // But `contact.receiverId` might be VendorID, not UserInfoID.
+        // The backend `getMessages` returns `conversation` with `sender` and `receiver` UserInfos.
+        // We can compare `msg.sender_id` with `conversation.sender_id` and `conversation.receiver_id`.
+        // We know we are 'customer'. 
+        // If `conversation.sender_type` is 'customer', we are sender.
+        // If `conversation.receiver_type` is 'customer', we are receiver.
+        
+        // Let's assume for now:
+        // We need to know who WE are in this conversation.
+        // const isMe = (data.conversation.sender_type === 'customer' && msg.sender_id === data.conversation.sender_id) || 
+        //              (data.conversation.receiver_type === 'customer' && msg.sender_id === data.conversation.receiver_id);
+        
+        timestamp: new Date(msg.created_at),
+        status: "read" // Default
+      })).map(msg => {
+         // Fix isUser logic inside map using the conversation data from response
+         const conv = data.conversation;
+         const isMe = (conv.sender_type === 'customer' && msg.id /* wait, msg doesn't have sender type, just ID */) ? 
+            // We can't access `msg` inside this map easily if we need `data`.
+            // Let's rewrite the map.
+            false : false;
+         return msg;
+      });
+
+      // Correct mapping
+      const realMappedMessages: Message[] = data.messages.map((msg: ChatMessage) => {
+         const conv = data.conversation;
+         // Determine if I am sender or receiver of the CONVERSATION
+         const amISender = conv.sender_type === 'customer';
+         const myId = amISender ? conv.sender_id : conv.receiver_id;
+         
+         // If message sender ID matches my ID, it's me.
+         const isUser = msg.sender_id === myId;
+         
+         return {
+            id: msg.id,
+            text: msg.message,
+            isUser: isUser,
+            timestamp: new Date(msg.created_at),
+            status: "read",
+            images: msg.file_full_url && msg.file_full_url.length > 0 
+                ? msg.file_full_url
+                : undefined
+         };
+      }).reverse(); // Messages usually come newest first from backend paginate, UI expects oldest first (or handle flex-reverse)
+
+      setMessages(prev => ({
+        ...prev,
+        [contact.id]: realMappedMessages
+      }));
+    } catch (error) {
+      console.error("Error fetching messages", error);
+      if (!silent) toast.error("Failed to load messages");
+    }
+  };
+
+  // WebSocket connection management (Keep existing for potential future use or AI)
+  useEffect(() => {
+    // connectWebSocket(); // Disable for now to avoid errors on non-existent WS
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
@@ -149,6 +291,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
       }
     };
   }, []);
+
 
   const connectWebSocket = () => {
     try {
@@ -261,13 +404,17 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
     }
   }, [messages, selectedContact]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputValue.trim() || !selectedContact) return;
 
-    const messageId = Date.now();
+    const messageText = inputValue.trim();
+    setInputValue(""); // Clear input immediately
+
+    // Optimistic update
+    const tempId = Date.now();
     const userMessage: Message = {
-      id: messageId,
-      text: inputValue,
+      id: tempId,
+      text: messageText,
       isUser: true,
       timestamp: new Date(),
       status: "sent",
@@ -278,33 +425,12 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
       [selectedContact.id]: [...(prev[selectedContact.id] || []), userMessage],
     }));
 
-    // Send via WebSocket
-    sendWebSocketMessage({
-      type: "message",
-      contactId: selectedContact.id,
-      messageId: messageId,
-      text: inputValue,
-      timestamp: new Date().toISOString(),
-    });
-
-    setInputValue("");
-
-    // Simulate status updates (replace with actual server responses)
-    setTimeout(() => {
-      setMessages(prev => ({
-        ...prev,
-        [selectedContact.id]: prev[selectedContact.id].map(msg => 
-          msg.id === userMessage.id ? { ...msg, status: "delivered" as const } : msg
-        ),
-      }));
-    }, 500);
-
-    // Simulate AI response for Bery AI (this should come from server in production)
+    // If it's the AI, simulate response
     if (selectedContact.isAI) {
       setTimeout(() => {
         const aiResponse: Message = {
           id: Date.now() + 1,
-          text: getAiResponse(inputValue),
+          text: getAiResponse(messageText),
           isUser: false,
           timestamp: new Date(),
           status: "read",
@@ -313,21 +439,35 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
           ...prev,
           [selectedContact.id]: [
             ...prev[selectedContact.id].map(msg => 
-              msg.id === userMessage.id ? { ...msg, status: "read" as const } : msg
+              msg.id === tempId ? { ...msg, status: "read" as const } : msg
             ),
             aiResponse
           ],
         }));
-      }, 1500);
-    } else {
-      setTimeout(() => {
-        setMessages(prev => ({
-          ...prev,
-          [selectedContact.id]: prev[selectedContact.id].map(msg => 
-            msg.id === userMessage.id ? { ...msg, status: "read" as const } : msg
-          ),
-        }));
-      }, 2000);
+      }, 1000);
+      return;
+    }
+
+    // Send to backend
+    try {
+      await chatService.sendMessage(
+        messageText,
+        selectedContact.conversationId,
+        selectedContact.receiverType,
+        selectedContact.receiverId
+      );
+
+      // Refresh messages to get the real ID and status
+      await fetchMessages(selectedContact, true);
+      
+    } catch (error) {
+      console.error("Failed to send message", error);
+      toast.error("Failed to send message");
+      // Mark as failed in UI (optional, for now just leave as sent or remove)
+      setMessages(prev => ({
+        ...prev,
+        [selectedContact.id]: prev[selectedContact.id].filter(msg => msg.id !== tempId) // Remove failed message or mark error
+      }));
     }
   };
 
@@ -580,9 +720,18 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
                     backdropFilter: 'blur(10px)',
                   }}
                 >
-                  <p className="text-sm leading-relaxed break-words whitespace-pre-line" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    {message.text}
-                  </p>
+                  {message.images && message.images.length > 0 && (
+                    <div className="mb-2 space-y-2">
+                        {message.images.map((img, idx) => (
+                            <img key={idx} src={img} alt="attachment" className="rounded-lg max-w-full h-auto object-cover border border-white/10" style={{ maxHeight: '200px' }} />
+                        ))}
+                    </div>
+                  )}
+                  {message.text && (
+                    <p className="text-sm leading-relaxed break-words whitespace-pre-line" style={{ fontFamily: 'Inter, sans-serif' }}>
+                        {message.text}
+                    </p>
+                  )}
                 </div>
                 
                 <div className={`flex items-center gap-1.5 mt-1 px-1 ${message.isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -606,10 +755,34 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
 
       {/* Input Area */}
       <div className="px-4 pb-6 flex-shrink-0 bg-gradient-to-b from-[#1a1d24] to-[#0a0a1a] border-t border-slate-800/50">
+        
+        {/* Image Preview */}
+        {previewUrl && (
+          <div className="pt-3 px-1 flex items-center gap-2">
+            <div className="relative group">
+                <img src={previewUrl} alt="preview" className="h-16 w-16 object-cover rounded-lg border border-slate-600" />
+                <button 
+                    onClick={clearFile}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md hover:bg-red-600 transition-colors"
+                >
+                    <div className="w-4 h-4 flex items-center justify-center text-xs">×</div>
+                </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 pt-4 max-w-2xl mx-auto">
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*"
+          />
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => fileInputRef.current?.click()}
             className="text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl h-11 w-11 flex-shrink-0 transition-all"
           >
             <Paperclip className="w-5 h-5" />
@@ -629,7 +802,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
           </div>
 
 
-          {inputValue.trim() ? (
+          {inputValue.trim() || selectedFile ? (
             <Button
               onClick={handleSend}
               disabled={!isConnected}
