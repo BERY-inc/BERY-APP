@@ -2,16 +2,18 @@ import { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ArrowLeft, ShoppingCart, Trash2, Plus, Minus, AlertCircle } from "lucide-react";
+import { ArrowLeft, ShoppingCart as ShoppingCartIcon, Trash2, Plus, Minus, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BottomNavigation } from "./BottomNavigation";
 import { EmptyState } from "./EmptyState";
 import { toast } from "sonner";
 
 export interface CartItem {
-  id: number;
+  id: number; // Cart ID
+  itemId?: number; // Product ID
   name: string;
   price: string;
+  numericPrice?: number; // Numeric price for calculations/updates
   usdPrice: string;
   seller: string;
   image?: string;
@@ -320,15 +322,13 @@ export function ShoppingCart({
             </Card>
 
             {/* Checkout Button */}
-            <div className="pb-24">
-              <Button
-                onClick={onCheckout}
-                className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white"
-              >
-                <ShoppingCart className="w-5 h-5 mr-2" />
-                Proceed to Checkout
-              </Button>
-            </div>
+            <Button
+              onClick={onCheckout}
+              className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white"
+            >
+              <ShoppingCartIcon className="w-5 h-5 mr-2" />
+              Proceed to Checkout
+            </Button>
           </>
         )}
         </div>

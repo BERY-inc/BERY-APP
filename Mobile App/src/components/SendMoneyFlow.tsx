@@ -8,13 +8,6 @@ import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
 import { ArrowLeft, Search, Check, Lock, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import { Haptics, NotificationType } from "@capacitor/haptics";
 import authService from "../services/authService";
 import { toast } from "sonner";
@@ -30,7 +23,6 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
   const [step, setStep] = useState(1);
   const [recipient, setRecipient] = useState(typeof initialRecipient === 'string' ? initialRecipient : "");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
   const [checkingUser, setCheckingUser] = useState(false);
   const [manualEntryMode, setManualEntryMode] = useState(false);
@@ -261,22 +253,10 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
                 <h2 className="text-lg mb-6 text-white">Enter Amount</h2>
 
                 <div className="mb-5">
-                  <Label className="text-xs text-slate-300">Currency</Label>
-                  <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger className="mt-2 h-12 bg-[#0a0a1a] border-slate-700/40 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1a1a2e] border-slate-700/40">
-                      <SelectItem value="USD">🇺🇸 USD - US Dollar</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="mb-5">
                   <Label className="text-xs text-slate-300">Amount</Label>
                   <div className="relative mt-2">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl text-slate-400/80">
-                      $
+                      ₿
                     </span>
                     <Input
                       type="number"
@@ -337,7 +317,7 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
                   <div className="p-4 bg-[#0a0a1a] rounded-xl border border-slate-700/40">
                     <p className="text-xs text-slate-400/80 mb-1">Amount</p>
                     <p className="text-3xl text-white">
-                      ${amount}
+                      ₿ {amount}
                     </p>
                   </div>
 
@@ -348,7 +328,7 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
                     </div>
                     <div className="p-4 bg-[#0a0a1a] rounded-xl border border-slate-700/40">
                       <p className="text-xs text-slate-400/80 mb-1">Total</p>
-                      <p className="text-sm text-white">${amount}</p>
+                      <p className="text-sm text-white">₿ {amount}</p>
                     </div>
                   </div>
                 </div>

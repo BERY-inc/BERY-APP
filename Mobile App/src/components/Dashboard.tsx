@@ -49,14 +49,10 @@ export function Dashboard({ onSendMoney, onReceiveMoney, onConvert, onViewHistor
         >
           <Card className="bg-white/10 backdrop-blur-md border-white/20 text-white p-4">
             <p className="text-white/80 text-xs mb-2">Wallet</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 gap-3 mb-3">
               <div>
                 <p className="text-white/70 text-xs mb-1">Bery</p>
                 <p className="text-xl" style={{ fontFamily: 'Montserrat, sans-serif' }}>₿ 2,450</p>
-              </div>
-              <div>
-                <p className="text-white/70 text-xs mb-1">USD</p>
-                <p className="text-xl" style={{ fontFamily: 'Montserrat, sans-serif' }}>$12,458</p>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2">

@@ -5,7 +5,6 @@ import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
   ArrowLeft,
-  CreditCard,
   Wallet,
   MapPin,
   Phone,
@@ -24,7 +23,7 @@ interface CheckoutConfirmationProps {
   totalBery: number;
   totalUSD: number;
   onBack: () => void;
-  onConfirmPurchase: (paymentMethod: "bery" | "usd", amount: number) => void;
+  onConfirmPurchase: (paymentMethod: "bery", amount: number) => void;
   walletBalance?: number;
 }
 
@@ -36,7 +35,6 @@ export function CheckoutConfirmation({
   onConfirmPurchase,
   walletBalance = 0,
 }: CheckoutConfirmationProps) {
-  const [paymentMethod, setPaymentMethod] = useState<"bery" | "usd">("usd");
   const [isProcessing, setIsProcessing] = useState(false);
   const [deliveryInfo, setDeliveryInfo] = useState({
     name: "John Doe",
@@ -47,17 +45,12 @@ export function CheckoutConfirmation({
     zipCode: "10001",
   });
 
-  const walletBalanceBery = walletBalance * 8.9;
-
-  const hasSufficientBalance =
-    paymentMethod === "bery"
-      ? walletBalanceBery >= totalBery
-      : walletBalance >= totalUSD;
+  const hasSufficientBalance = walletBalance >= totalBery;
 
   const handleConfirm = () => {
     if (!hasSufficientBalance) {
       toast.error("Insufficient Balance", {
-        description: `You need ${paymentMethod === "bery" ? `₿${totalBery.toFixed(1)}` : `$${totalUSD.toFixed(2)}`} but only have ${paymentMethod === "bery" ? `₿${walletBalanceBery.toFixed(1)}` : `$${walletBalance.toFixed(2)}`}`,
+        description: `You need ₿${totalBery.toFixed(1)} but only have ₿${walletBalance.toFixed(1)}`,
         duration: 5000,
       });
       return;
@@ -69,7 +62,7 @@ export function CheckoutConfirmation({
     setTimeout(() => {
       setIsProcessing(false);
       try { Haptics.notification({ type: NotificationType.Success }); } catch {}
-      onConfirmPurchase(paymentMethod, totalUSD);
+      onConfirmPurchase("bery", totalBery);
     }, 2000);
   };
 
@@ -156,22 +149,11 @@ export function CheckoutConfirmation({
           </h3>
           <div className="space-y-3">
             {/* Bery Wallet */}
-            <button
-              onClick={() => setPaymentMethod("bery")}
-              className={`w-full p-4 rounded-xl border-2 transition-all ${
-                paymentMethod === "bery"
-                  ? "border-blue-600 bg-blue-600/10"
-                  : "border-slate-700/40 bg-transparent hover:border-slate-600"
-              }`}
-            >
+            <div className="w-full p-4 rounded-xl border-2 border-blue-600 bg-blue-600/10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      paymentMethod === "bery"
-                        ? "bg-blue-600"
-                        : "bg-slate-700/50"
-                    }`}
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-600"
                   >
                     <Wallet className="w-5 h-5 text-white" />
                   </div>
@@ -183,53 +165,13 @@ export function CheckoutConfirmation({
                       Bery Wallet
                     </p>
                     <p className="text-xs text-slate-400">
-                      Balance: ₿ {walletBalanceBery.toFixed(1)}
+                      Balance: ₿ {walletBalance.toFixed(1)}
                     </p>
                   </div>
                 </div>
-                {paymentMethod === "bery" && (
-                  <CheckCircle2 className="w-5 h-5 text-blue-400" />
-                )}
+                <CheckCircle2 className="w-5 h-5 text-blue-400" />
               </div>
-            </button>
-
-            {/* USD Wallet */}
-            <button
-              onClick={() => setPaymentMethod("usd")}
-              className={`w-full p-4 rounded-xl border-2 transition-all ${
-                paymentMethod === "usd"
-                  ? "border-blue-600 bg-blue-600/10"
-                  : "border-slate-700/40 bg-transparent hover:border-slate-600"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      paymentMethod === "usd"
-                        ? "bg-blue-600"
-                        : "bg-slate-700/50"
-                    }`}
-                  >
-                    <CreditCard className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="text-left">
-                    <p
-                      className="text-sm text-white"
-                      style={{ fontFamily: "Inter, sans-serif", fontWeight: 600 }}
-                    >
-                      USD Wallet
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Balance: ${walletBalance.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                {paymentMethod === "usd" && (
-                  <CheckCircle2 className="w-5 h-5 text-blue-400" />
-                )}
-              </div>
-            </button>
+            </div>
           </div>
 
           {!hasSufficientBalance && (
@@ -257,14 +199,10 @@ export function CheckoutConfirmation({
                   className="text-lg text-white"
                   style={{ fontFamily: "Inter, sans-serif", fontWeight: 700 }}
                 >
-                  {paymentMethod === "bery"
-                    ? `₿ ${totalBery.toFixed(1)}`
-                    : `$${totalUSD.toFixed(2)}`}
+                  ₿ {totalBery.toFixed(1)}
                 </p>
                 <p className="text-xs text-slate-400">
-                  {paymentMethod === "bery"
-                    ? `≈ $${totalUSD.toFixed(2)}`
-                    : `≈ ₿ ${totalBery.toFixed(1)}`}
+                  ≈ ${totalUSD.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -291,11 +229,7 @@ export function CheckoutConfirmation({
               Processing...
             </div>
           ) : (
-            `Confirm Payment ${
-              paymentMethod === "bery"
-                ? `₿ ${totalBery.toFixed(1)}`
-                : `$${totalUSD.toFixed(2)}`
-            }`
+            `Confirm Payment ₿ ${totalBery.toFixed(1)}`
           )}
         </Button>
 

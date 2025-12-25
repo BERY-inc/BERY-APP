@@ -110,6 +110,7 @@ interface CartItem {
   id: number;
   name: string;
   price: string;
+  numericPrice?: number;
   usdPrice: string;
   image?: string;
   quantity: number;
@@ -146,9 +147,11 @@ export function CheckoutPage({
 
   // Calculate tax (10%)
   const subtotalUSD = cartItems.reduce((sum, item) => {
-    const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
-    return sum + (price * item.quantity * 8.9);
-  }, 0);
+    const price = item.numericPrice !== undefined 
+      ? item.numericPrice 
+      : parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+    return sum + (price * item.quantity);
+  }, 0) / 8.9;
   
   const taxUSD = subtotalUSD * 0.1;
   const shippingUSD = 0; // Free shipping
@@ -269,7 +272,7 @@ export function CheckoutPage({
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-300">Qty: {item.quantity}</span>
                       <span className="text-sm text-white font-medium">
-                        ₿{(parseFloat(item.price.replace("₿", "").replace("From", "").trim()) * item.quantity).toFixed(2)}
+                        ₿{((item.numericPrice !== undefined ? item.numericPrice : parseFloat(item.price.replace("₿", "").replace("From", "").trim())) * item.quantity).toFixed(2)}
                       </span>
                     </div>
                   </div>

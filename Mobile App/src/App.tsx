@@ -58,10 +58,6 @@ import {
   CategoryItemScreen,
   GlobalSearchScreen,
   FavouriteScreen,
-  MyOrdersScreen,
-  OrderDetailsScreen,
-  OrderTrackingScreen,
-  GuestTrackOrderScreen,
   RefundRequestScreen,
   PaymentScreen,
   PaymentWebviewScreen,
@@ -71,6 +67,12 @@ import {
   AddressScreen,
   AddAddressScreen,
 } from "./components/MarketplaceScreens";
+import {
+  OrderScreen,
+  OrderDetailsScreen,
+  OrderTrackingScreen,
+  GuestTrackOrderScreen,
+} from "./components/OrderScreens";
 import {
   GenericScreenSkeleton,
   MarketplaceSkeleton,
@@ -239,6 +241,8 @@ interface Order {
   date: number;
 }
 
+const isDev = !!(import.meta as any).env?.DEV;
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -247,7 +251,7 @@ export default function App() {
   const [pendingInvestment, setPendingInvestment] = useState<InvestmentData | null>(null);
   const [transactionId, setTransactionId] = useState("");
   const [activeInvestments, setActiveInvestments] = useState<ActiveInvestment[]>([]);
-  const [walletBalance, setWalletBalance] = useState<number>(0); // USD balance
+  const [walletBalance, setWalletBalance] = useState<number>(0);
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [counterpartyInfo, setCounterpartyInfo] = useState<Record<string, { name: string; image?: string; phone?: string }>>({});
@@ -292,7 +296,7 @@ export default function App() {
           const results = await Promise.all(
             refs.map(async (r) => {
               try {
-                const u = await authService.checkUser(r);
+                const u = await authService.checkUser(r as string);
                 return { r, u };
               } catch {
                 return { r, u: null };
@@ -310,11 +314,11 @@ export default function App() {
           setCounterpartyInfo({});
         }
       } catch (txError) {
-        console.warn("Failed to fetch transactions:", txError);
+        if (isDev) console.warn("Failed to fetch transactions:", txError);
       }
       return true;
     } catch (error) {
-      console.error("Session restore failed:", error);
+      if (isDev) console.error("Session restore failed:", error);
       // Token might be invalid
       localStorage.removeItem('authToken');
       return false;
@@ -352,6 +356,24 @@ export default function App() {
     itemCount: number;
   } | null>(null);
 
+  useEffect(() => {
+    const path = location.pathname;
+    const screenFromPath: Partial<Record<string, Screen>> = {
+      "/marketplace": "marketplace",
+      "/product-detail": "product-detail",
+      "/shopping-cart": "shopping-cart",
+      "/checkout": "checkout",
+      "/purchase-success": "purchase-success",
+      "/orders": "orders",
+      "/profile": "profile",
+    };
+
+    const next = screenFromPath[path];
+    if (!next) return;
+    setCurrentScreen((prev) => (prev === next ? prev : next));
+    setNavigationHistory((prev) => (prev[prev.length - 1] === next ? prev : [...prev, next]));
+  }, [location.pathname]);
+
   // Onboarding Flow Handlers
   const handleGetStarted = () => {
     setCurrentScreen("signup");
@@ -379,7 +401,7 @@ export default function App() {
         phone,
         password
       });
-      console.log("Registration success:", response);
+      if (isDev) console.log("Registration success:", response);
 
       setUserData({ email, phone, firstName: name.split(" ")[0], lastName: name.split(" ")[1] || "" });
 
@@ -390,7 +412,7 @@ export default function App() {
       // Skipping OTP verification as per user request to go straight to home.
       setCurrentScreen("dashboard");
     } catch (error: any) {
-      console.error("Registration failed:", error);
+      if (isDev) console.error("Registration failed:", error);
       // Re-throw to be handled by the form
       throw error;
     }
@@ -407,12 +429,12 @@ export default function App() {
         field_type: isEmail ? 'email' : 'phone'
       });
 
-      console.log("Login success:", response);
+      if (isDev) console.log("Login success:", response);
 
       // Fetch full profile details
       try {
         const profile = await authService.getProfile();
-        console.log("Profile fetched:", profile);
+        if (isDev) console.log("Profile fetched:", profile);
 
         // Update wallet balance from profile
         if (profile.wallet_balance !== undefined) {
@@ -432,7 +454,7 @@ export default function App() {
           image: imageUrl
         });
       } catch (profileError) {
-        console.warn("Could not fetch detailed profile:", profileError);
+        if (isDev) console.warn("Could not fetch detailed profile:", profileError);
         // Fallback to basic info if profile fetch fails
         setUserData({
           email: isEmail ? email : "",
@@ -446,7 +468,7 @@ export default function App() {
 
       setCurrentScreen("dashboard");
     } catch (error: any) {
-      console.error("Login failed:", error);
+      if (isDev) console.error("Login failed:", error);
       // Re-throw to be handled by the form
       throw error;
     }
@@ -467,7 +489,7 @@ export default function App() {
       // Fetch profile to get name/details
       try {
         const profile = await authService.getProfile();
-        console.log("Verified Profile fetched:", profile);
+        if (isDev) console.log("Verified Profile fetched:", profile);
 
         // Update wallet balance from profile
         if (profile.wallet_balance !== undefined) {
@@ -499,7 +521,7 @@ export default function App() {
           });
         }
       } catch (e) {
-        console.error("Profile fetch failed after verify:", e);
+        if (isDev) console.error("Profile fetch failed after verify:", e);
         toast.success("Verified!", { description: "Welcome to Bery." });
         setCurrentScreen("dashboard");
       }
@@ -538,7 +560,7 @@ export default function App() {
     // Check if user has sufficient funds
     if (investmentData.amount > walletBalance) {
       toast.error("Insufficient Funds", {
-        description: `You need $${investmentData.amount.toLocaleString()} but only have $${walletBalance.toLocaleString()}`,
+        description: `You need ₿ ${investmentData.amount.toLocaleString()} but only have ₿ ${walletBalance.toLocaleString()}`,
         duration: 4000,
       });
       return;
@@ -659,69 +681,55 @@ export default function App() {
 
   const handleBackToDashboard = () => {
     setCurrentScreen("dashboard");
+    navigate("/", { replace: true });
   };
 
-  const handleNavigate = async (screen: string) => {
-    console.log(`🧭Navigating to: ${screen}`);
-    setNavigationHistory([...navigationHistory, screen as Screen]);
-    setCurrentScreen(screen as Screen);
-    
-    // Fetch cart items when navigating to shopping-cart
-    if (screen === 'shopping-cart') {
-      try {
-        console.log("🛒 Fetching cart items...");
-        const backendCart = await itemService.getCartItems();
-        console.log("✅ Backend cart:", backendCart);
-        
-        if (backendCart && Array.isArray(backendCart) && backendCart.length > 0) {
-          const mapped: CartItem[] = backendCart.map((ci) => ({
-            id: Number(ci.item_id),
-            name: ci.item?.name ?? "Unknown Item",
-            price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
-            usdPrice: `$${(((ci.price ?? 0) / 8.9)).toFixed(2)}`,
-            seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : "Store",
-            image: ci.item?.image ?? "📦",
-            icon: undefined,
-            quantity: Number(ci.quantity ?? 1),
-            type: "product",
-          }));
-          setCartItems(mapped);
-          console.log(`✅ Loaded ${mapped.length} items`);
-        } else {
-          console.log("⚠️ Cart is empty");
-          setCartItems([]);
-        }
-      } catch (error) {
-        console.error("❌ Cart fetch error:", error);
-      }
-    }
-    
-    // Sync to URL for deep linkable screens
+  const syncUrlForScreen = (
+    screen: Screen,
+    options?: { replace?: boolean; productId?: number }
+  ): boolean => {
+    const replace = options?.replace ?? false;
+    const selectedId = selectedProduct?.id ? Number(selectedProduct.id) : undefined;
+    const productId = options?.productId ?? selectedId;
+
     switch (screen) {
+      case "dashboard":
+        navigate("/", { replace });
+        return true;
       case "marketplace":
-        navigate("/marketplace");
-        break;
+        navigate("/marketplace", { replace });
+        return true;
       case "product-detail":
-        navigate(`/product-detail${selectedProduct ? `?id=${selectedProduct.id}` : ""}`);
-        break;
+        navigate(`/product-detail${productId ? `?id=${productId}` : ""}`, { replace });
+        return true;
       case "shopping-cart":
-        navigate("/shopping-cart");
-        break;
+        navigate("/shopping-cart", { replace });
+        return true;
       case "checkout":
-        navigate("/checkout");
-        break;
+        navigate("/checkout", { replace });
+        return true;
       case "purchase-success":
-        navigate("/purchase-success");
-        break;
+        navigate("/purchase-success", { replace });
+        return true;
       case "orders":
-        navigate("/orders");
-        break;
+        navigate("/orders", { replace });
+        return true;
+      case "profile":
+        navigate("/profile", { replace });
+        return true;
       case "order-details":
-        navigate(`/order-details${transactionId ? `/${transactionId}` : ""}`);
-        break;
+        navigate(`/order-details${transactionId ? `/${transactionId}` : ""}`, { replace });
+        return true;
       default:
-        break;
+        return false;
     }
+  };
+
+  const handleNavigate = (screen: string) => {
+    const next = screen as Screen;
+    setNavigationHistory((prev) => [...prev, next]);
+    setCurrentScreen(next);
+    syncUrlForScreen(next);
   };
 
   const handleGoBack = () => {
@@ -731,6 +739,7 @@ export default function App() {
       const previousScreen = newHistory[newHistory.length - 1];
       setNavigationHistory(newHistory);
       setCurrentScreen(previousScreen);
+      syncUrlForScreen(previousScreen, { replace: true });
     }
   };
 
@@ -738,106 +747,157 @@ export default function App() {
   const handleProductClick = (product: any, isService: boolean) => {
     setSelectedProduct(product);
     setIsServiceDetail(isService);
-    // Navigate to product detail with query
-    navigate(`/product-detail?id=${product.id}`);
-    setNavigationHistory([...navigationHistory, "product-detail"]);
+    syncUrlForScreen("product-detail", { productId: Number(product.id) });
+    setNavigationHistory((prev) => [...prev, "product-detail"]);
     setCurrentScreen("product-detail");
   };
 
   const handleAddToCart = async (product: any, quantity: number) => {
-    console.log("=== ADD TO CART ===");
-    console.log("Product:", product);
-    console.log("Quantity:", quantity);
-    console.log("Product ID:", product.id);
-    console.log("Auth Token:", localStorage.getItem('authToken') ? 'Present' : 'Missing');
-    
-    // Temporary visual feedback
-    console.log("%c🛒 ADD TO CART TRIGGERED!", "color: green; font-size: 20px; font-weight: bold;");
-    
-    try {
-      // Add to backend cart
-      console.log("Attempting to add to backend cart...");
-      const addResponse = await itemService.addToCart({ 
-        item_id: Number(product.id), 
-        quantity: Number(quantity) 
-      });
-      console.log("Backend add response:", addResponse);
-      
-      // Fetch updated cart from backend
-      console.log("Fetching updated cart...");
+    // Determine price: use actual_price if available, otherwise try to parse the string price
+    let price = product.actual_price;
+    if (price === undefined && typeof product.price === 'string') {
+      // Remove currency symbol and whitespace
+      const cleanPrice = product.price.replace(/[^0-9.]/g, '');
+      price = parseFloat(cleanPrice);
+    }
+    // Fallback if price is still invalid
+    if (!price || isNaN(price)) {
+      price = 0;
+    }
+
+    // Ensure correct module context for this item
+    if (product.module_id) {
+      try {
+        localStorage.setItem('moduleId', product.module_id.toString());
+      } catch {}
+    }
+
+    const productId = Number(product.id);
+    const addQty = Number(quantity) || 1;
+
+    const syncFromBackend = async () => {
       const backendCart = await itemService.getCartItems();
-      console.log("Backend cart items:", backendCart);
-      
-      // Map backend cart to local cart format
       const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
-        id: Number(ci.item_id),
+        id: Number(ci.id),
+        itemId: Number(ci.item_id),
         name: ci.item?.name ?? product.name,
         price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+        numericPrice: ci.price ?? 0,
         usdPrice: `$${(((ci.price ?? 0) * 8.9)).toFixed(2)}`,
         seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : (product.seller ?? "Store"),
         image: ci.item?.image ?? product.image,
         icon: product.icon,
-        quantity: Number(ci.quantity ?? quantity),
+        quantity: Number(ci.quantity ?? addQty),
         type: isServiceDetail ? "service" : "product",
       }));
-      
       setCartItems(mapped);
-      console.log("%c✅ SUCCESS! Cart updated successfully!", "color: green; font-size: 16px; font-weight: bold;");
-      console.log("Total items in cart:", mapped.length);
-      
-      try {
-        toast.success("Added to cart!", {
-          description: `${product.name || 'Item'} (${quantity}x) added successfully.`,
+      return backendCart;
+    };
+
+    const incrementExistingQuantity = async (): Promise<boolean> => {
+      const existingFromState = cartItems.find((ci: any) => Number(ci.itemId) === productId && Number.isFinite(Number(ci.id)));
+      if (existingFromState?.id) {
+        const nextQty = Number(existingFromState.quantity ?? 0) + addQty;
+        const unitPrice =
+          typeof existingFromState.numericPrice === 'number' && !Number.isNaN(existingFromState.numericPrice)
+            ? existingFromState.numericPrice
+            : Number(price) || 0;
+
+        await itemService.updateCart({
+          cart_id: Number(existingFromState.id),
+          quantity: nextQty,
+          price: unitPrice
         });
-      } catch (toastError) {
-        console.error("Toast error:", toastError);
+        return true;
       }
-      
+
+      const backendCart = await itemService.getCartItems();
+      const existingFromBackend = (Array.isArray(backendCart) ? backendCart : []).find((ci: any) => Number(ci?.item_id) === productId);
+      if (existingFromBackend?.id) {
+        const nextQty = Number(existingFromBackend.quantity ?? 0) + addQty;
+        const unitPrice = Number(existingFromBackend.price ?? price) || 0;
+
+        await itemService.updateCart({
+          cart_id: Number(existingFromBackend.id),
+          quantity: nextQty,
+          price: unitPrice
+        });
+        return true;
+      }
+
+      return false;
+    };
+
+    try {
+      const addToCartResult = await itemService.addToCart({
+        item_id: productId,
+        quantity: addQty,
+        price: Number(price) || 0,
+        model: 'Item'
+      });
+
+      if (addToCartResult?.alreadyExists) {
+        await incrementExistingQuantity();
+        toast.success("Cart updated", {
+          description: `+${addQty}x ${product.name}`
+        });
+      } else {
+        toast.success("Added to cart", {
+          description: `${addQty}x ${product.name}`
+        });
+      }
+
+      await syncFromBackend();
     } catch (e: any) {
-      console.error("%c❌ ADD TO CART ERROR", "color: red; font-size: 16px; font-weight: bold;");
-      console.error("Error:", e);
-      console.error("Error message:", e.message);
-      console.error("Error response:", e.response?.data);
-      console.error("Error status:", e.response?.status);
-      
-      // Fallback to local cart on error
-      console.log("Falling back to local cart...");
-      const existingItem = cartItems.find(item => item.id === product.id);
+      const errorMessage = (e?.message ?? '').toString();
+      const lower = errorMessage.toLowerCase();
+      const isItemAlreadyInCart =
+        lower.includes('item already exists') || lower.includes('already exists') || lower.includes('already in cart');
+
+      if (isItemAlreadyInCart) {
+        try {
+          await incrementExistingQuantity();
+          await syncFromBackend();
+          toast.success("Cart updated", {
+            description: `+${addQty}x ${product.name}`
+          });
+          return;
+        } catch {}
+      } else {
+        toast.error(`Server sync failed: ${errorMessage || "Unknown error"}`);
+      }
+      const existingItem = cartItems.find((item) => Number(item.itemId) === productId);
       if (existingItem) {
         setCartItems(
           cartItems.map((item: CartItem) =>
-            item.id === product.id
-              ? { ...item, quantity: item.quantity + quantity }
+            Number(item.itemId) === productId
+              ? { ...item, quantity: item.quantity + addQty }
               : item
           )
         );
+        toast.success("Cart updated", {
+          description: `+${addQty}x ${product.name}`
+        });
       } else {
         const newItem: CartItem = {
-          id: product.id,
+          id: Date.now(), // Temporary ID for local item
+          itemId: productId,
           name: product.name,
           price: product.price,
+          numericPrice: price,
           usdPrice: product.usdPrice,
           seller: product.seller,
           image: product.image,
           icon: product.icon,
-          quantity: quantity,
+          quantity: addQty,
           type: isServiceDetail ? "service" : "product",
         };
         setCartItems([...cartItems, newItem]);
-      }
-      
-      console.log("%c⚠️ Added to local cart (backend failed)", "color: orange; font-size: 16px;");
-      
-      try {
-        toast.warning("Added to local cart", {
-          description: `${product.name || 'Item'} added locally. Server sync failed: ${e.message}`,
+        toast.success("Added to cart", {
+          description: `${addQty}x ${product.name}`
         });
-      } catch (toastError) {
-        console.error("Toast error:", toastError);
       }
     }
-    
-    console.log("====================");
   };
 
   const handleBuyNow = (product: any, quantity: number) => {
@@ -846,13 +906,29 @@ export default function App() {
   };
 
   const handleUpdateCartQuantity = async (id: number, quantity: number) => {
+    const item = cartItems.find(i => i.id === id);
+    if (!item) return;
+
+    // Parse price if numericPrice is missing
+    let price = item.numericPrice;
+    if (price === undefined) {
+      price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+    }
+
     try {
-      await itemService.addToCart({ item_id: Number(id), quantity: Number(quantity) });
+      await itemService.updateCart({ 
+        cart_id: id, 
+        quantity: Number(quantity),
+        price: price
+      });
+
       const backendCart = await itemService.getCartItems();
       const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
-        id: Number(ci.item_id),
+        id: Number(ci.id),
+        itemId: Number(ci.item_id),
         name: ci.item?.name ?? "",
         price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+        numericPrice: ci.price ?? 0,
         usdPrice: `$${(((ci.price ?? 0) * 8.9)).toFixed(2)}`,
         seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : "Store",
         image: ci.item?.image,
@@ -872,17 +948,15 @@ export default function App() {
 
   const handleRemoveFromCart = async (id: number) => {
     try {
-      await itemService.clearCart();
-      const remaining = cartItems.filter((item: CartItem) => item.id !== id);
-      for (const item of remaining) {
-        const qty = Number(item.quantity ?? 1);
-        await itemService.addToCart({ item_id: Number(item.id), quantity: qty });
-      }
+      await itemService.removeCartItem(id);
+      
       const backendCart = await itemService.getCartItems();
       const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
-        id: Number(ci.item_id),
+        id: Number(ci.id),
+        itemId: Number(ci.item_id),
         name: ci.item?.name ?? "",
         price: `₿ ${(ci.price ?? 0).toFixed(2)}`,
+        numericPrice: ci.price ?? 0,
         usdPrice: `$${(((ci.price ?? 0) * 8.9)).toFixed(2)}`,
         seller: ci.item?.store_id ? `Store #${ci.item.store_id}` : "Store",
         image: ci.item?.image,
@@ -905,15 +979,17 @@ export default function App() {
   };
 
   const handleConfirmPurchase = async (paymentMethod: "bery", amount: number) => {
-    // Deduct from wallet balance
-    setWalletBalance((prev: number) => prev - amount);
+    const previousWalletBalance = walletBalance;
+    setWalletBalance(previousWalletBalance - amount);
 
     const txId = `TX${Date.now().toString(36).toUpperCase()}`;
     setTransactionId(txId);
     
     // Calculate purchase data before placing order
     const totalBery = cartItems.reduce((sum: number, item: CartItem) => {
-      const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+      const price = item.numericPrice !== undefined 
+        ? item.numericPrice 
+        : parseFloat(item.price.replace("₿", "").replace("From", "").trim());
       return sum + price * item.quantity;
     }, 0) * 1.1; // Including 10% tax
     
@@ -925,123 +1001,95 @@ export default function App() {
       totalAmount: totalBery,
       itemCount
     });
-    
-    // Place order on backend
+
+    let orderPlaced = false;
     try {
-      // Get real cart items from backend
       const realCartItems = await itemService.getCartItems();
-      console.log("Real cart items:", realCartItems);
-      
-      if (!realCartItems || realCartItems.length === 0) {
-        console.error("No cart items found");
-        toast.error("Cart is empty", {
-          description: "Please add items to cart before placing order.",
-        });
-        return;
+      if (isDev) console.log("Real cart items:", realCartItems);
+      if (!Array.isArray(realCartItems) || realCartItems.length === 0) {
+        toast.error("Cart is empty");
+        throw new Error("Empty cart");
       }
       
-      // Calculate total from real cart items
       const cartTotal = realCartItems.reduce((sum, item) => {
-        return sum + (item.price * item.quantity);
+        const unitPrice = Number(item?.price) || 0;
+        const qty = Number(item?.quantity) || 0;
+        return sum + (unitPrice * qty);
       }, 0);
-      console.log("Cart total:", cartTotal);
-      
-      // Use first cart item's store_id as placeholder
-      const storeId = realCartItems.length > 0 ? realCartItems[0].item.store_id : 1;
-      console.log("Store ID:", storeId);
-      
-      // Get user data for contact information
-      const userProfile = await authService.getProfile();
-      console.log("User profile:", userProfile);
-      
-      // Get user address information from checkout or profile
-      let address = localStorage.getItem('checkoutAddress') || "123 Main St";
-      let phoneNumber = localStorage.getItem('checkoutPhone') || userProfile.phone || '';
-      let longitude = -73.9857;
-      let latitude = 40.7484;
-      
-      // Try to get actual user address from profile if not set in checkout
-      if (!localStorage.getItem('checkoutAddress') && userProfile.address) {
-        address = userProfile.address;
+      if (isDev) console.log("Cart total:", cartTotal);
+      if (!Number.isFinite(cartTotal) || cartTotal <= 0) {
+        toast.error("Invalid cart total");
+        throw new Error("Invalid cart total");
       }
+      
+      const storedStoreIdRaw = localStorage.getItem('storeId');
+      const fromCart = realCartItems.length > 0 ? Number(realCartItems[0]?.item?.store_id) : NaN;
+      const fromStorage = storedStoreIdRaw ? Number(storedStoreIdRaw) : NaN;
+      const storeId = Number.isFinite(fromCart) ? fromCart : (Number.isFinite(fromStorage) ? fromStorage : 1);
+      if (isDev) console.log("Store ID:", storeId);
+      
+      const userProfile = await authService.getProfile();
+      if (isDev) console.log("User profile:", userProfile);
+      
+      const storedAddress = localStorage.getItem('checkoutAddress');
+      const storedPhone = localStorage.getItem('checkoutPhone');
+      const address =
+        (storedAddress && storedAddress.trim()) ||
+        ((userProfile as any)?.address && String((userProfile as any).address).trim()) ||
+        "123 Main St";
+      const longitude = -73.9857;
+      const latitude = 40.7484;
+      const token = localStorage.getItem('authToken');
+      const guestId = !token ? localStorage.getItem('guest_id') : null;
       
       const orderData = {
-        payment_method: "wallet" as const,
-        order_type: "delivery" as const,
+        payment_method: "wallet",
+        order_type: "delivery",
         store_id: storeId,
-        distance: 5.5,
+        distance: 5.5, // Placeholder - would be calculated
         address: address,
         longitude: longitude,
         latitude: latitude,
         order_amount: cartTotal,
         cutlery: false,
         contact_person_name: (userProfile.f_name || '') + ' ' + (userProfile.l_name || ''),
-        contact_person_number: phoneNumber,
+        contact_person_number: (storedPhone && storedPhone.trim()) || userProfile.phone || '',
         contact_person_email: userProfile.email || '',
+        ...(guestId ? { guest_id: guestId } : {})
       };
       
-      console.log("Order data being sent:", orderData);
-      console.log("API Base URL:", (import.meta as any).env?.VITE_API_BASE_URL || 'https://market.bery.in/');
-      console.log("Auth Token:", localStorage.getItem('authToken') ? 'Present' : 'Missing');
-      
+      if (isDev) console.log("Order data being sent:", orderData);
       const orderResponse = await orderService.placeOrder(orderData);
-      console.log("Order placed successfully!");
-      console.log("Order response:", orderResponse);
+      if (isDev) console.log("Order placed response:", orderResponse);
       
-      if (orderResponse && orderResponse.order_id) {
-        console.log("Order ID from server:", orderResponse.order_id);
-        toast.success("Order placed successfully!", {
-          description: `Order #${orderResponse.order_id} has been created.`,
-        });
-      } else {
-        console.log("Order response (no order_id):", orderResponse);
-        toast.success("Order confirmed!", {
-          description: "Your payment has been processed successfully.",
-        });
-      }
-      
-      // Refresh orders to ensure the new order appears in "My Orders"
       await refreshOrders();
       
+      toast.success("Order confirmed!", {
+        description: "Your payment has been processed successfully.",
+      });
+      orderPlaced = true;
     } catch (error: any) {
-      console.error("=== ORDER PLACEMENT ERROR ===");
-      console.error("Error object:", error);
-      console.error("Error message:", error.message);
-      console.error("Error response:", error.response?.data);
-      console.error("Error status:", error.response?.status);
-      console.error("Error headers:", error.response?.headers);
-      console.error("=============================");
+      if (isDev) {
+        console.error("Error placing order:", error);
+        console.error("Error response:", error.response?.data);
+        console.error("Error status:", error.response?.status);
+        console.error("Error headers:", error.response?.headers);
+      }
       
       toast.error("Order placement failed", {
-        description: error.message || "There was an issue placing your order. Please try again.",
+        description: "There was an issue placing your order. Please try again.",
       });
-      
-      // Don't navigate to success if order failed
+      setWalletBalance(previousWalletBalance);
       return;
-    }    
+    }
+
+    if (!orderPlaced) {
+      setWalletBalance(previousWalletBalance);
+      return;
+    }
+
     handleNavigate("purchase-success");
 
-    // Record order in local state
-    const totalUSD = cartItems.reduce((sum: number, item: CartItem) => {
-      const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
-      return sum + price * item.quantity * 8.9;
-    }, 0) * 1.1;
-    const totalBeryLocal = cartItems.reduce((sum: number, item: CartItem) => {
-      const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
-      return sum + price * item.quantity;
-    }, 0) * 1.1;
-    setOrders((prev) => [
-      {
-        id: txId,
-        items: cartItems,
-        totalUSD,
-        totalBery: totalBeryLocal,
-        date: Date.now(),
-      },
-      ...prev,
-    ]);
-
-    // Clear cart after purchase
     setTimeout(() => {
       setCartItems([]);
     }, 1000);
@@ -1072,7 +1120,7 @@ export default function App() {
       // Update the local orders state with fresh data from backend
       setOrders(orderResponse.orders || []);
     } catch (error) {
-      console.error('Error refreshing orders:', error);
+      if (isDev) console.error('Error refreshing orders:', error);
     }
   };
 
@@ -1200,6 +1248,7 @@ export default function App() {
               onLogout={handleLogout}
               cartItemCount={cartItems.length}
               userData={userData}
+              onUserDataChange={(next) => setUserData(next)}
             />
           </Suspense>
         )}
@@ -1251,10 +1300,10 @@ export default function App() {
           </Suspense>
         )}
 
-        {currentScreen === "product-detail" && selectedProduct && (
+        {currentScreen === "product-detail" && (
           <Suspense fallback={<ProductDetailSkeleton />}>
             <ItemDetailsScreen
-              product={selectedProduct}
+              product={selectedProduct ?? undefined}
               onBack={handleGoBack}
               onNavigate={handleNavigate}
               onAddToCart={handleAddToCart}
@@ -1282,11 +1331,15 @@ export default function App() {
             <CheckoutConfirmation
               cartItems={cartItems}
               totalBery={cartItems.reduce((sum: number, item: CartItem) => {
-                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+                const price = item.numericPrice !== undefined 
+                  ? item.numericPrice 
+                  : parseFloat(item.price.replace("₿", "").replace("From", "").trim());
                 return sum + (price * item.quantity);
               }, 0) * 1.1}
               totalUSD={cartItems.reduce((sum: number, item: CartItem) => {
-                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+                const price = item.numericPrice !== undefined 
+                  ? item.numericPrice 
+                  : parseFloat(item.price.replace("₿", "").replace("From", "").trim());
                 return sum + (price * item.quantity);
               }, 0) * 1.1 / 8.9}
               onBack={handleGoBack}
@@ -1302,11 +1355,15 @@ export default function App() {
             <CheckoutPage
               cartItems={cartItems}
               totalBery={cartItems.reduce((sum: number, item: CartItem) => {
-                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+                const price = item.numericPrice !== undefined 
+                  ? item.numericPrice 
+                  : parseFloat(item.price.replace("₿", "").replace("From", "").trim());
                 return sum + (price * item.quantity);
               }, 0) * 1.1}
               totalUSD={cartItems.reduce((sum: number, item: CartItem) => {
-                const price = parseFloat(item.price.replace("₿", "").replace("From", "").trim());
+                const price = item.numericPrice !== undefined 
+                  ? item.numericPrice 
+                  : parseFloat(item.price.replace("₿", "").replace("From", "").trim());
                 return sum + (price * item.quantity);
               }, 0) * 1.1 / 8.9}
               onBack={handleGoBack}
@@ -1362,12 +1419,7 @@ export default function App() {
           <CampaignScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "item-details-new" && (
-          <ItemDetailsScreen 
-            onBack={handleBackToDashboard} 
-            onNavigate={handleNavigate}
-            onAddToCart={handleAddToCart}
-            onBuyNow={handleBuyNow}
-          />
+          <ItemDetailsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "items-view-all" && (
           <ItemViewAllScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
@@ -1391,7 +1443,7 @@ export default function App() {
           <FavouriteScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
         )}
         {currentScreen === "orders" && (
-          <MyOrdersScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
+          <OrderScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} orders={orders} />
         )}
         {currentScreen === "order-details" && (
           <OrderDetailsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />

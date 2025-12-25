@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { ArrowLeft, TrendingUp, Shield, Clock, DollarSign, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Shield, Clock, Wallet, CheckCircle2 } from "lucide-react";
 import { motion } from "motion/react";
 import { Badge } from "./ui/badge";
 
@@ -43,12 +43,12 @@ export function InvestmentOpportunity({ opportunity, onBack, onInvest, walletBal
     }
     
     if (investAmount < opportunity.minAmount) {
-      setError(`Minimum investment is $${opportunity.minAmount.toLocaleString()}`);
+      setError(`Minimum investment is ₿${opportunity.minAmount.toLocaleString()}`);
       return;
     }
     
     if (investAmount > walletBalance) {
-      setError(`Insufficient funds. Your balance is $${walletBalance.toLocaleString()}`);
+      setError(`Insufficient funds. Your balance is ₿${walletBalance.toLocaleString()}`);
       return;
     }
     
@@ -107,11 +107,11 @@ export function InvestmentOpportunity({ opportunity, onBack, onInvest, walletBal
         <div className="grid grid-cols-2 gap-3 mb-6">
           <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-blue-400" />
+              <Wallet className="w-4 h-4 text-blue-400" />
               <p className="text-xs text-slate-400">Min. Investment</p>
             </div>
             <p className="text-base text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-              ${opportunity.minAmount.toLocaleString()}
+              ₿ {opportunity.minAmount.toLocaleString()}
             </p>
           </Card>
 
@@ -168,14 +168,14 @@ export function InvestmentOpportunity({ opportunity, onBack, onInvest, walletBal
               Investment Calculator
             </h3>
             <div className="text-xs text-blue-300">
-              Balance: <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>${walletBalance.toLocaleString()}</span>
+              Balance: <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>₿ {walletBalance.toLocaleString()}</span>
             </div>
           </div>
 
           <div className="mb-4">
             <label className="text-xs text-slate-400 mb-2 block">Investment Amount</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">₿</span>
               <Input
                 type="number"
                 value={amount}
@@ -188,7 +188,7 @@ export function InvestmentOpportunity({ opportunity, onBack, onInvest, walletBal
               />
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Minimum investment: ${opportunity.minAmount.toLocaleString()}
+              Minimum investment: ₿{opportunity.minAmount.toLocaleString()}
             </p>
             {error && (
               <motion.p
@@ -210,11 +210,11 @@ export function InvestmentOpportunity({ opportunity, onBack, onInvest, walletBal
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs text-green-300">Estimated Annual Return</p>
                 <p className="text-lg text-green-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  ${estimatedReturn}
+                  ₿ {estimatedReturn}
                 </p>
               </div>
               <p className="text-xs text-green-300/70">
-                After {opportunity.lockPeriod}, your total value: ${(parseFloat(amount) + parseFloat(estimatedReturn)).toLocaleString()}
+                After {opportunity.lockPeriod}, your total value: ₿ {(parseFloat(amount) + parseFloat(estimatedReturn)).toLocaleString()}
               </p>
             </motion.div>
           )}
@@ -247,7 +247,7 @@ export function InvestmentOpportunity({ opportunity, onBack, onInvest, walletBal
           className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-base"
           style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}
         >
-          Invest ${amount || "0"}
+          Invest ₿ {amount || "0"}
         </Button>
       </div>
     </div>

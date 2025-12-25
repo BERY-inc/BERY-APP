@@ -1,5 +1,7 @@
 import apiClient from './apiClient';
 
+const isDev = !!(import.meta as any).env?.DEV;
+
 export interface Item {
   id: number;
   name: string;
@@ -13,6 +15,7 @@ export interface Item {
   veg: number;
   status: number;
   store_id: number;
+  module_id: number;
   category_id: number;
   rating_count: number;
   avg_rating: number;
@@ -31,6 +34,7 @@ export interface ItemDetails extends Item {
 }
 
 export interface CartItem {
+  id?: number; // Cart ID
   item_id: number;
   item: Item;
   quantity: number;
@@ -47,10 +51,61 @@ export interface CartItem {
 export interface AddToCartRequest {
   item_id: number;
   quantity: number;
+  price: number;
   variant?: string;
   variation?: any[];
   add_ons?: number[];
   add_on_qtys?: number[];
+  model?: string;
+  guest_id?: string;
+}
+
+// Helper to generate numeric Guest ID (compatible with backend BIGINT user_id)
+function generateGuestId(): string {
+  // Use timestamp + random 3 digits to ensure uniqueness and fit in BIGINT
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${Date.now()}${random}`;
+}
+
+// Get proper guest ID from backend
+async function getGuestIdFromBackend(): Promise<string> {
+  try {
+    const response = await apiClient.post('/api/v1/auth/guest/request', {
+      fcm_token: 'guest_' + Date.now() // Simple FCM token for guest
+    });
+    return response.data.guest_id;
+  } catch (error) {
+    if (isDev) {
+      console.error('Failed to get guest ID from backend, using fallback:', error);
+    }
+    // Fallback to local generation if backend fails
+    return generateGuestId();
+  }
+}
+
+// Ensure we have a moduleId for cart operations
+async function ensureModuleId(): Promise<void> {
+  let moduleId = localStorage.getItem('moduleId');
+  if (!moduleId) {
+    // Try to get default module from backend
+    try {
+      const response = await apiClient.get('/api/v1/module');
+      if (response.data?.data && response.data.data.length > 0) {
+        moduleId = response.data.data[0].id.toString();
+        localStorage.setItem('moduleId', moduleId);
+      } else {
+        moduleId = '1';
+        localStorage.setItem('moduleId', moduleId);
+      }
+    } catch (error) {
+      if (isDev) {
+        console.error('Failed to get module from backend, using fallback:', error);
+      }
+      // Use a common default module ID
+      moduleId = '1';
+      localStorage.setItem('moduleId', moduleId);
+    }
+  }
 }
 
 class ItemService {
@@ -156,43 +211,130 @@ class ItemService {
     }
   }
 
-  // Get cart items
   async getCartItems(): Promise<CartItem[]> {
     try {
-      const response = await apiClient.get<{ cart_items: CartItem[] }>('/api/v1/cart/list');
-      return response.data.cart_items;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Add item to cart
-  async addToCart(data: AddToCartRequest): Promise<any> {
-    try {
-      const response = await apiClient.post('/api/v1/cart/add', data);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Update cart item
-  async updateCart(data: { key: string; quantity: number }): Promise<any> {
-    try {
-      const response = await apiClient.post('/api/v1/cart/update', data);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Remove cart item
-  async removeCartItem(key: string): Promise<any> {
-    try {
-      const response = await apiClient.delete('/api/v1/cart/remove-item', {
-        data: { key }
+      await ensureModuleId();
+      
+      const token = localStorage.getItem('authToken');
+      const currentModuleId = localStorage.getItem('moduleId');
+      
+      const headers: any = {
+        'moduleId': currentModuleId,
+        'zoneId': localStorage.getItem('zoneId')
+      };
+      
+      const params: any = {};
+      
+      if (!token) {
+        let guestId = localStorage.getItem('guest_id');
+        if (!guestId) {
+          guestId = await getGuestIdFromBackend();
+          localStorage.setItem('guest_id', guestId);
+        }
+        params.guest_id = guestId;
+      } else {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await apiClient.get<any>('/api/v1/customer/cart/list', {
+        params: params,
+        headers: headers
       });
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.cart_items)) return data.cart_items;
+      return [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async addToCart(data: AddToCartRequest): Promise<any> {
+    await ensureModuleId();
+    
+    const token = localStorage.getItem('authToken');
+    const payload = { ...data };
+
+    if (!payload.model) {
+      payload.model = 'Item';
+    }
+
+    try {
+            if (!token) {
+              let guestId = localStorage.getItem('guest_id');
+              if (!guestId) {
+                guestId = await getGuestIdFromBackend();
+                localStorage.setItem('guest_id', guestId);
+              }
+              payload.guest_id = guestId;
+            }
+
+      const response = await apiClient.post('/api/v1/customer/cart/add', payload);
       return response.data;
+    } catch (error) {
+      const errorMessage = (error instanceof Error ? error.message : String(error ?? '')).toLowerCase();
+      const isItemAlreadyExists =
+        errorMessage.includes('item already exists') ||
+        errorMessage.includes('already exists') ||
+        errorMessage.includes('already in cart');
+
+      if (isItemAlreadyExists) {
+        return { alreadyExists: true, message: error instanceof Error ? error.message : 'Item already exists' };
+      }
+
+      if (isDev) {
+        console.error('Error adding item to cart:', error);
+      }
+
+      throw error;
+    }
+  }
+
+  async updateCart(data: { cart_id: number; quantity: number; price: number; guest_id?: string }): Promise<any> {
+    try {
+      await ensureModuleId();
+      
+      const token = localStorage.getItem('authToken');
+      const payload = { ...data };
+
+      if (!token) {
+         let guestId = localStorage.getItem('guest_id');
+         if (!guestId) {
+           guestId = await getGuestIdFromBackend();
+           localStorage.setItem('guest_id', guestId);
+         }
+         payload.guest_id = guestId;
+      }
+
+      const response = await apiClient.post<any>('/api/v1/customer/cart/update', payload);
+      const responseData = response.data;
+      if (Array.isArray(responseData)) return responseData;
+      return responseData;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async removeCartItem(cart_id: number): Promise<any> {
+    try {
+      await ensureModuleId();
+      
+      const token = localStorage.getItem('authToken');
+      const payload: any = { cart_id };
+
+      if (!token) {
+        const guestId = localStorage.getItem('guest_id');
+        if (guestId) {
+          payload.guest_id = guestId;
+        }
+      }
+
+      const response = await apiClient.delete<any>('/api/v1/customer/cart/remove-item', {
+        data: payload
+      });
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      return data;
     } catch (error) {
       throw error;
     }
@@ -201,8 +343,10 @@ class ItemService {
   // Clear cart
   async clearCart(): Promise<any> {
     try {
-      const response = await apiClient.delete('/api/v1/cart/remove');
-      return response.data;
+      const response = await apiClient.delete<any>('/api/v1/customer/cart/remove');
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      return data;
     } catch (error) {
       throw error;
     }

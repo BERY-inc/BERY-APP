@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { BottomNavigation } from "./BottomNavigation";
+import { toast } from "sonner";
+import { authService, customerService } from "../services";
 
 interface UserData {
   firstName?: string;
@@ -37,28 +39,211 @@ interface ProfileSettingsProps {
   onLogout?: () => void;
   cartItemCount?: number;
   userData?: UserData;
+  onUserDataChange?: (next: {
+    email: string;
+    phone: string;
+    firstName?: string;
+    lastName?: string;
+    image?: string;
+  }) => void;
 }
 
-export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 0, userData }: ProfileSettingsProps) {
-  const [notifications, setNotifications] = useState({
-    transactions: true,
-    marketing: false,
-    security: true,
+export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 0, userData, onUserDataChange }: ProfileSettingsProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const raw = localStorage.getItem("profile_notifications");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {
+      transactions: true,
+      marketing: false,
+      security: true,
+    };
   });
-  const [darkMode, setDarkMode] = useState(false);
-  const [biometric, setBiometric] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      return localStorage.getItem("profile_darkMode") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [biometric, setBiometric] = useState(() => {
+    try {
+      const raw = localStorage.getItem("profile_biometric");
+      return raw ? raw === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [liveUserData, setLiveUserData] = useState<UserData | null>(userData ?? null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [draft, setDraft] = useState<{ firstName: string; lastName: string; email: string }>({
+    firstName: userData?.firstName || "",
+    lastName: userData?.lastName || "",
+    email: userData?.email || "",
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("profile_notifications", JSON.stringify(notifications));
+      localStorage.setItem("profile_darkMode", String(darkMode));
+      localStorage.setItem("profile_biometric", String(biometric));
+    } catch {}
+  }, [notifications, darkMode, biometric]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      try {
+        setLoadingProfile(true);
+        const profile = await authService.getProfile();
+        if (cancelled) return;
+
+        let imageUrl = profile.image;
+        if (imageUrl && !imageUrl.startsWith("http")) {
+          imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+        }
+
+        const createdAt = profile.created_at ? new Date(profile.created_at) : null;
+        const memberSince = createdAt && !Number.isNaN(createdAt.getTime())
+          ? createdAt.toLocaleDateString(undefined, { month: "short", year: "numeric" })
+          : undefined;
+
+        const next: UserData = {
+          firstName: profile.f_name,
+          lastName: profile.l_name,
+          email: profile.email,
+          phone: profile.phone,
+          image: imageUrl,
+          memberSince,
+        };
+
+        setLiveUserData(next);
+        onUserDataChange?.({
+          email: next.email,
+          phone: next.phone,
+          firstName: next.firstName,
+          lastName: next.lastName,
+          image: next.image,
+        });
+        setDraft({
+          firstName: next.firstName || "",
+          lastName: next.lastName || "",
+          email: next.email || "",
+        });
+      } catch (e: any) {
+        const message = (e?.response?.data?.message || e?.message || "Failed to load profile").toString();
+        toast.error(message);
+      } finally {
+        if (!cancelled) setLoadingProfile(false);
+      }
+    };
+
+    loadProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Derived display values
-  const displayName = userData?.firstName || userData?.lastName
-    ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim()
-    : (userData?.email ? userData.email.split('@')[0] : (userData?.phone || "Guest User"));
-  const displayEmail = userData?.email || "No email provided";
-  const displayPhone = userData?.phone || "No phone linked";
-  const memberSince = userData?.memberSince || "Jan 2024";
+  const effectiveUser = liveUserData ?? userData;
+  const displayName = effectiveUser?.firstName || effectiveUser?.lastName
+    ? `${effectiveUser?.firstName || ''} ${effectiveUser?.lastName || ''}`.trim()
+    : (effectiveUser?.email ? effectiveUser.email.split('@')[0] : (effectiveUser?.phone || "Guest User"));
+  const displayEmail = effectiveUser?.email || "No email provided";
+  const displayPhone = effectiveUser?.phone || "No phone linked";
+  const memberSince = effectiveUser?.memberSince || "Jan 2024";
   const initials = displayName !== "Guest User"
     ? displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : "GU";
-  const displayImage = userData?.image;
+  const displayImage = effectiveUser?.image;
+
+  const openEdit = () => {
+    if (!localStorage.getItem("authToken")) {
+      toast.info("Login required", { description: "Please login to edit your profile." });
+      return;
+    }
+    setDraft({
+      firstName: effectiveUser?.firstName || "",
+      lastName: effectiveUser?.lastName || "",
+      email: effectiveUser?.email || "",
+    });
+    setSelectedImageFile(null);
+    setEditOpen(true);
+  };
+
+  const saveProfile = async () => {
+    try {
+      if (!localStorage.getItem("authToken")) {
+        toast.info("Login required", { description: "Please login to update your profile." });
+        return;
+      }
+
+      if (!draft.firstName.trim() || !draft.lastName.trim()) {
+        toast.error("Please enter your first and last name");
+        return;
+      }
+
+      if (!draft.email.trim()) {
+        toast.error("Please enter your email");
+        return;
+      }
+
+      setSaving(true);
+      await customerService.updateProfile({
+        f_name: draft.firstName.trim(),
+        l_name: draft.lastName.trim(),
+        email: draft.email.trim(),
+        image: selectedImageFile || undefined,
+      });
+
+      const profile = await authService.getProfile();
+      let imageUrl = profile.image;
+      if (imageUrl && !imageUrl.startsWith("http")) {
+        imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+      }
+
+      const createdAt = profile.created_at ? new Date(profile.created_at) : null;
+      const nextMemberSince = createdAt && !Number.isNaN(createdAt.getTime())
+        ? createdAt.toLocaleDateString(undefined, { month: "short", year: "numeric" })
+        : undefined;
+
+      const next: UserData = {
+        firstName: profile.f_name,
+        lastName: profile.l_name,
+        email: profile.email,
+        phone: profile.phone,
+        image: imageUrl,
+        memberSince: nextMemberSince,
+      };
+
+      setLiveUserData(next);
+      onUserDataChange?.({
+        email: next.email,
+        phone: next.phone,
+        firstName: next.firstName,
+        lastName: next.lastName,
+        image: next.image,
+      });
+      setEditOpen(false);
+      toast.success("Profile updated");
+    } catch (e: any) {
+      const message = (e?.response?.data?.message || e?.message || "Profile update failed").toString();
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="h-screen overflow-y-auto pb-32 bg-[#0a0a1a]">
@@ -98,6 +283,10 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
                 <Button
                   size="icon"
                   className="absolute -bottom-1 -right-1 rounded-full w-8 h-8 bg-white text-[#2563eb] hover:bg-white/90 shadow-lg border-2 border-background"
+                  onClick={() => {
+                    if (editOpen) return;
+                    openEdit();
+                  }}
                 >
                   <Edit className="w-4 h-4" />
                 </Button>
@@ -114,6 +303,79 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
                 </div>
               </div>
             </div>
+
+            {loadingProfile && (
+              <div className="mb-4">
+                <p className="text-xs text-muted-foreground">Loading profile…</p>
+              </div>
+            )}
+
+            {editOpen && (
+              <div className="mb-5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">First name</Label>
+                    <Input
+                      value={draft.firstName}
+                      onChange={(e) => setDraft((p) => ({ ...p, firstName: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Last name</Label>
+                    <Input
+                      value={draft.lastName}
+                      onChange={(e) => setDraft((p) => ({ ...p, lastName: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    value={draft.email}
+                    onChange={(e) => setDraft((p) => ({ ...p, email: e.target.value }))}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setSelectedImageFile(e.target.files?.[0] ?? null)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 text-xs"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {selectedImageFile ? "Image selected" : "Change photo"}
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 text-xs"
+                      onClick={() => setEditOpen(false)}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      className="h-9 text-xs"
+                      onClick={saveProfile}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>

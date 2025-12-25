@@ -44,13 +44,13 @@ export function InvestmentManagement({ investment, onBack, onWithdraw }: Investm
         }
       } else {
         // Partial withdrawal
-        alert(`Partial withdrawal of $${amount} from ${investment.name}`);
+        alert(`Partial withdrawal of ₿${amount} from ${investment.name}`);
         setSelectedAction(null);
         setAmount("");
       }
     } else {
       // Here you would handle the actual transaction for add/reduce
-      alert(`${selectedAction} $${amount} ${selectedAction === "add" ? "to" : "from"} ${investment.name}`);
+      alert(`${selectedAction} ₿${amount} ${selectedAction === "add" ? "to" : "from"} ${investment.name}`);
       setSelectedAction(null);
       setAmount("");
     }
@@ -97,13 +97,13 @@ export function InvestmentManagement({ investment, onBack, onWithdraw }: Investm
             <div>
               <p className="text-xs text-blue-200/70 mb-1">Invested</p>
               <p className="text-base text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                ${investment.amount.toLocaleString()}
+                ₿ {investment.amount.toLocaleString()}
               </p>
             </div>
             <div>
               <p className="text-xs text-blue-200/70 mb-1">Earnings</p>
               <p className="text-base text-green-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                +${investment.earnings}
+                +₿ {investment.earnings.toLocaleString()}
               </p>
             </div>
             <div>
@@ -187,9 +187,9 @@ export function InvestmentManagement({ investment, onBack, onWithdraw }: Investm
               </h3>
 
               <div className="mb-4">
-                <label className="text-xs text-slate-400 mb-2 block">Amount (USD)</label>
+                <label className="text-xs text-slate-400 mb-2 block">Amount (Bery)</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">₿</span>
                   <Input
                     type="number"
                     value={amount}
@@ -199,9 +199,9 @@ export function InvestmentManagement({ investment, onBack, onWithdraw }: Investm
                   />
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  {selectedAction === "add" && "Minimum: $100"}
-                  {selectedAction === "reduce" && `Maximum: $${investment.amount.toLocaleString()}`}
-                  {selectedAction === "withdraw" && `Available: $${(investment.amount + investment.earnings).toLocaleString()}`}
+                  {selectedAction === "add" && "Minimum: ₿100"}
+                  {selectedAction === "reduce" && `Maximum: ₿${investment.amount.toLocaleString()}`}
+                  {selectedAction === "withdraw" && `Available: ₿${(investment.amount + investment.earnings).toLocaleString()}`}
                 </p>
               </div>
 
@@ -262,7 +262,7 @@ export function InvestmentManagement({ investment, onBack, onWithdraw }: Investm
             <div>
               <p className="text-xs text-slate-400/80 mb-1">Current Value</p>
               <p className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                ${(investment.amount + investment.earnings).toLocaleString()}
+                ₿ {(investment.amount + investment.earnings).toLocaleString()}
               </p>
             </div>
             <div>

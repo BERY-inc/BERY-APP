@@ -3,6 +3,40 @@ import apiClient from './apiClient';
 import { Order, PaginatedOrder, OrderCancellationReason, RefundReason } from '../types/orderTypes';
 
 class OrderService {
+  private async ensureZoneAndModule(): Promise<void> {
+    const zoneId = localStorage.getItem('zoneId');
+    if (!zoneId) {
+      try {
+        const response = await apiClient.get<any>('/api/v1/zone/list');
+        const data = response.data;
+        const zones = Array.isArray(data) ? data : (data?.zones ?? data?.data ?? []);
+        const zoneIds = Array.isArray(zones)
+          ? zones.map((z: any) => Number(z?.id)).filter((id: number) => Number.isFinite(id))
+          : [];
+        const firstZoneId = zoneIds.length > 0 ? zoneIds[0] : null;
+        if (firstZoneId !== null) {
+          try { localStorage.setItem('zoneId', JSON.stringify([firstZoneId])); } catch {}
+        }
+      } catch {
+        try { localStorage.setItem('zoneId', JSON.stringify([1])); } catch {}
+      }
+    }
+
+    const moduleId = localStorage.getItem('moduleId');
+    if (!moduleId) {
+      try {
+        const response = await apiClient.get<any>('/api/v1/module');
+        const data = response.data;
+        const modules = Array.isArray(data) ? data : (data?.data ?? data?.modules ?? []);
+        const first = Array.isArray(modules) && modules.length > 0 ? modules[0] : null;
+        const resolvedId = first?.id ? String(first.id) : '1';
+        try { localStorage.setItem('moduleId', resolvedId); } catch {}
+      } catch {
+        try { localStorage.setItem('moduleId', '1'); } catch {}
+      }
+    }
+  }
+
   // Get running orders
   async getRunningOrders(offset: number = 1, limit: number = 10): Promise<PaginatedOrder> {
     try {
@@ -134,8 +168,11 @@ class OrderService {
     contact_person_name?: string;
     contact_person_number?: string;
     contact_person_email?: string;
+    guest_id?: string;
   }): Promise<any> {
     try {
+      await this.ensureZoneAndModule();
+
       // Ensure all required fields are present
       const completeOrderData = {
         ...orderData,

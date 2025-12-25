@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import { ArrowLeft, TrendingUp, TrendingDown, DollarSign, Wallet, PiggyBank, LineChart, Rocket, Building2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Wallet, PiggyBank, LineChart, Rocket, Building2 } from "lucide-react";
 import { motion } from "motion/react";
 import { BottomNavigation } from "./BottomNavigation";
 import { InvestmentManagement } from "./InvestmentManagement";
@@ -50,7 +50,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
 
   const totalInvested = investments.reduce((sum, inv) => sum + inv.amount, 0);
   const totalEarnings = investments.reduce((sum, inv) => sum + inv.earnings, 0);
-  const avgReturn = (totalEarnings / totalInvested * 100).toFixed(2);
+  const avgReturn = totalInvested > 0 ? ((totalEarnings / totalInvested) * 100).toFixed(2) : "0.00";
 
   const opportunities = {
     fixedDeposit: {
@@ -64,7 +64,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
       color: "from-green-500 to-emerald-600",
       features: [
         "Guaranteed 6% APY returns",
-        "FDIC insured up to $250,000",
+        "Insured up to ₿2,225,000",
         "Flexible withdrawal options",
         "Automatic renewal available",
         "No management fees"
@@ -77,7 +77,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
       minAmount: 1000,
       lockPeriod: "12 months",
       riskLevel: "Medium Risk",
-      icon: DollarSign,
+      icon: Wallet,
       color: "from-blue-500 to-indigo-600",
       features: [
         "10% average annual return",
@@ -151,7 +151,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
             onInvestmentConfirm(investmentData);
           } else {
             // Fallback if callback not provided
-            alert(`Investment of $${amount} in ${selectedOpportunity.name} confirmed!`);
+            alert(`Investment of ₿${amount} in ${selectedOpportunity.name} confirmed!`);
             setViewMode("list");
             setSelectedOpportunity(null);
           }
@@ -202,13 +202,13 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
               <div>
                 <p className="text-xs text-blue-100/70 mb-1">Total Invested</p>
                 <p className="text-2xl text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  ${totalInvested.toLocaleString()}
+                  ₿ {totalInvested.toLocaleString()}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-blue-100/70 mb-1">Total Earnings</p>
                 <p className="text-2xl text-green-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  +${totalEarnings.toLocaleString()}
+                  +₿ {totalEarnings.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -277,13 +277,13 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
                     <div>
                       <p className="text-xs text-slate-400/80 mb-1">Invested</p>
                       <p className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                        ${investment.amount.toLocaleString()}
+                        ₿ {investment.amount.toLocaleString()}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-400/80 mb-1">Earnings</p>
                       <p className="text-sm text-green-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                        +${investment.earnings}
+                        +₿ {investment.earnings.toLocaleString()}
                       </p>
                     </div>
                     <div>
@@ -348,13 +348,13 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
                 </div>
               </div>
               <p className="text-xs text-slate-300/80 mb-4">
-                Secure your funds with guaranteed returns. FDIC insured. Minimum investment: $500
+                Secure your funds with guaranteed returns. Minimum investment: ₿500
               </p>
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div>
                   <p className="text-xs text-green-300/70 mb-1">Min. Amount</p>
                   <p className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                    $500
+                    ₿500
                   </p>
                 </div>
                 <div>
@@ -393,7 +393,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
             <Card className="p-5 bg-gradient-to-br from-slate-800/50 to-blue-900/30 border border-blue-500/30 shadow-lg shadow-blue-900/20">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-white" />
+                  <Wallet className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-white mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
@@ -414,7 +414,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
                 <div>
                   <p className="text-xs text-blue-300/70 mb-1">Min. Amount</p>
                   <p className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                    $1,000
+                    ₿1,000
                   </p>
                 </div>
                 <div>
@@ -474,7 +474,7 @@ export function InvestmentsPage({ onBack, onNavigate, onInvestmentConfirm, onWit
                 <div>
                   <p className="text-xs text-purple-300/70 mb-1">Min. Amount</p>
                   <p className="text-sm text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                    $2,000
+                    ₿2,000
                   </p>
                 </div>
                 <div>

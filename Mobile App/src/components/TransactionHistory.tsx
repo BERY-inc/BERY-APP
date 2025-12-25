@@ -186,7 +186,7 @@ export function TransactionHistory({ onBack, onNavigate, cartItemCount = 0, tran
                   </div>
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Total Received</p>
-                    <p className="text-xl">$3,700.00</p>
+                    <p className="text-xl">₿ 3,700.00</p>
                   </div>
                   <p className="text-xs text-green-600">+12%</p>
                 </div>
@@ -199,7 +199,7 @@ export function TransactionHistory({ onBack, onNavigate, cartItemCount = 0, tran
                   </div>
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Total Sent</p>
-                    <p className="text-xl">$285.49</p>
+                    <p className="text-xl">₿ 285.49</p>
                   </div>
                   <p className="text-xs text-red-600">-5%</p>
                 </div>
@@ -212,7 +212,7 @@ export function TransactionHistory({ onBack, onNavigate, cartItemCount = 0, tran
                   </div>
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Conversions</p>
-                    <p className="text-xl">$500.00</p>
+                    <p className="text-xl">₿ 500.00</p>
                   </div>
                   <p className="text-xs text-blue-600">1 conv.</p>
                 </div>

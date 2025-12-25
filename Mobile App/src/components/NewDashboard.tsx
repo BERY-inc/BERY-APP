@@ -184,18 +184,18 @@ export function NewDashboard({
                     color: '#f0f9ff'
                   }}
                 >
-                  ${walletBalance.toLocaleString()}
+                  ₿ {walletBalance.toLocaleString()}
                 </h2>
               </div>
 
-              {/* Bery Conversion */}
+              {/* USD Approx */}
               <div className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 flex-1">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-blue-100/70">Bery (₿)</p>
+                  <p className="text-[10px] text-blue-100/70">USD (≈)</p>
                   <p className="text-[9px] text-blue-100/50">1 USD = 8.9 ₿</p>
                 </div>
                 <p className="text-xl text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  ₿ {(walletBalance * 8.9).toLocaleString()}
+                  ${(walletBalance / 8.9).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
@@ -264,7 +264,7 @@ export function NewDashboard({
                 <div>
                   <p className="text-xs text-green-300/70">Investment Returns</p>
                   <p className="text-lg text-green-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                    +${activeInvestments.reduce((sum, inv) => sum + inv.earnings, 0).toLocaleString()}
+                    +₿ {activeInvestments.reduce((sum, inv) => sum + inv.earnings, 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -503,7 +503,7 @@ export function NewDashboard({
                     </Card>
                     <Card className="p-3 bg-[#0a0a1a] border border-slate-700/40">
                       <p className="text-[11px] text-slate-400">Balance After</p>
-                      <p className="text-xs">${(transaction.original?.balance || 0).toFixed(2)}</p>
+                      <p className="text-xs">₿ {Number(transaction.original?.balance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
                     </Card>
                   </div>
                 </div>

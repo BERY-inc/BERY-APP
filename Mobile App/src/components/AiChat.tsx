@@ -57,7 +57,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>();
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
 
@@ -475,13 +475,13 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
     const lowerInput = input.toLowerCase();
     
     if (lowerInput.includes("balance") || lowerInput.includes("money") || lowerInput.includes("wallet")) {
-      return "Your current balance is:\n\n💵 Total: $13,400\n₿ Bery: 119,260 (1 USD = 8.9 ₿)\n\nWould you like to see your transaction history or investment portfolio?";
+      return "Your current balance is:\n\n₿ Total: 119,260\n≈ $13,400 (1 USD = 8.9 ₿)\n\nWould you like to see your transaction history or investment portfolio?";
     } else if (lowerInput.includes("invest")) {
       return "Great question! We have several investment options:\n\n📊 Fixed Deposit: 6% APY (Low risk)\n💰 Lending Pool: 10% APY (Medium risk)\n📈 Equity Pool: 15% APY (High risk)\n🚀 Venture Capital: 30% APY (High risk/reward)\n🏢 Real Estate: 12% APY (Medium risk)\n\nWhich interests you most?";
     } else if (lowerInput.includes("send") || lowerInput.includes("transfer")) {
-      return "To send money:\n\n1. Tap 'Send' on your wallet\n2. Select recipient or enter wallet ID\n3. Enter amount in USD or Bery\n4. Confirm transaction\n\nYou can send to any Bery user instantly with zero fees! Need help with a specific transfer?";
+      return "To send money:\n\n1. Tap 'Send' on your wallet\n2. Select recipient or enter wallet ID\n3. Enter amount in Bery (₿)\n4. Confirm transaction\n\nYou can send to any Bery user instantly with zero fees! Need help with a specific transfer?";
     } else if (lowerInput.includes("marketplace") || lowerInput.includes("buy") || lowerInput.includes("shop")) {
-      return "The Bery Marketplace has:\n\n🛍️ Products: Electronics, home goods, fashion & more\n💼 Services: Design, development, marketing, video editing\n\nAll payments accepted in Bery (₿) or USD. Want me to show you featured items?";
+      return "The Bery Marketplace has:\n\n🛍️ Products: Electronics, home goods, fashion & more\n💼 Services: Design, development, marketing, video editing\n\nAll payments accepted in Bery (₿). Want me to show you featured items?";
     } else if (lowerInput.includes("bery") || lowerInput.includes("currency")) {
       return "Bery (₿) is the platform's native currency!\n\n💱 Exchange Rate: 1 USD = 8.9 ₿\n✅ Use for all marketplace purchases\n⚡ Instant transfers, zero fees\n🌍 Accepted globally on Bery\n\nYou can convert USD to Bery anytime from your wallet!";
     } else if (lowerInput.includes("hi") || lowerInput.includes("hello") || lowerInput.includes("hey")) {

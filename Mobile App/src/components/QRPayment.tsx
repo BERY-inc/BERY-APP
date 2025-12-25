@@ -39,7 +39,7 @@ export function QRPayment({
       id: t.transaction_id,
       name: name,
       date: new Date(t.created_at).toLocaleDateString(),
-      amount: (t.credit > 0 ? '+' : '-') + '$' + (t.credit > 0 ? t.credit : t.debit).toFixed(2),
+      amount: (t.credit > 0 ? '+' : '-') + '₿' + (t.credit > 0 ? t.credit : t.debit).toFixed(2),
       isPositive: t.credit > 0,
       avatar: (t.reference && counterpartyInfo?.[t.reference]?.image) || null,
       icon: type === 'send' ? <ArrowUpRight className="w-5 h-5 text-red-400" />
@@ -98,7 +98,7 @@ export function QRPayment({
             {/* Wallet Balance */}
             <div className="text-center mb-4">
               <p className="text-blue-200/80 text-xs mb-1">Available Balance</p>
-              <p className="text-white text-2xl font-bold">${walletBalance.toLocaleString()}</p>
+              <p className="text-white text-2xl font-bold">₿ {walletBalance.toLocaleString()}</p>
             </div>
 
             {/* Instruction */}

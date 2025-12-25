@@ -202,19 +202,29 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           ]);
         }
 
-        const transformedProducts = Array.isArray(productData) ? productData.map((product: any) => ({
-          id: product.id,
-          name: product.name,
-          price: `₿ ${product.price}`,
-          usdPrice: `$${(product.price * 8.9).toFixed(2)}`,
-          rating: product.avg_rating || 4.5,
-          reviews: product.rating_count || 100,
-          category: product.category_id ? product.category_id.toString() : "uncategorized",
-          seller: product.store_name || "Store Name",
-          image: product.image_full_url || product.image,
-          images: product.images,
-          store_id: product.store_id,
-        })) : [];
+        const transformedProducts = Array.isArray(productData) ? productData.map((product: any) => {
+          const primaryImage = product.image_full_url || product.image;
+          const images = Array.isArray(product.images)
+            ? product.images
+            : (primaryImage ? [primaryImage] : []);
+
+          return {
+            id: product.id,
+            name: product.name,
+            price: `₿ ${product.price}`,
+            actual_price: product.price,
+            usdPrice: `$${(product.price * 8.9).toFixed(2)}`,
+            rating: product.avg_rating || 4.5,
+            reviews: product.rating_count || 100,
+            category: product.category_id ? product.category_id.toString() : "uncategorized",
+            seller: product.store_name || "Store Name",
+            image: primaryImage,
+            images,
+            description: product.description ?? "",
+            store_id: product.store_id,
+            module_id: product.module_id,
+          };
+        }) : [];
 
         setProducts(transformedProducts);
         setStores(Array.isArray(storeData) ? storeData : []);
@@ -297,18 +307,29 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
           offset: 0,
         });
 
-        const transformProduct = (product: any) => ({
-          id: product.id,
-          name: product.name,
-          price: `₿ ${product.price}`,
-          usdPrice: `$${(product.price * 8.9).toFixed(2)}`,
-          rating: product.avg_rating || 4.5,
-          reviews: product.rating_count || 100,
-          category: product.category_id ? product.category_id.toString() : "uncategorized",
-          seller: product.store_name || "Store Name",
-          image: product.image,
-          store_id: product.store_id,
-        });
+        const transformProduct = (product: any) => {
+          const primaryImage = product.image_full_url || product.image;
+          const images = Array.isArray(product.images)
+            ? product.images
+            : (primaryImage ? [primaryImage] : []);
+
+          return {
+            id: product.id,
+            name: product.name,
+            price: `₿ ${product.price}`,
+            actual_price: product.price,
+            usdPrice: `$${(product.price * 8.9).toFixed(2)}`,
+            rating: product.avg_rating || 4.5,
+            reviews: product.rating_count || 100,
+            category: product.category_id ? product.category_id.toString() : "uncategorized",
+            seller: product.store_name || "Store Name",
+            image: primaryImage,
+            images,
+            description: product.description ?? "",
+            store_id: product.store_id,
+            module_id: product.module_id,
+          };
+        };
 
         let transformedProducts = Array.isArray(productData) ? productData.map(transformProduct) : [];
 
@@ -383,18 +404,16 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   }
 
   const handleItemClick = (item: any) => {
+    const images = Array.isArray(item?.images)
+      ? item.images
+      : (item?.image ? [item.image] : []);
+
     const enhancedItem = {
       ...item,
-      description: `High-quality ${item.name} from ${item.seller}. This product offers exceptional value and performance, backed by our buyer protection guarantee.`,
-      features: [
-        "Premium quality materials",
-        "1-year warranty included",
-        "Free shipping available",
-        "Buyer protection guarantee",
-        "Authentic product verification"
-      ],
-      images: [item.image, item.image, item.image]
+      description: item?.description ?? "",
+      images,
     };
+
     try { Haptics.notification({ type: NotificationType.Success }); } catch { }
     onProductClick(enhancedItem, false);
   };
