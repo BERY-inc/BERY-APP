@@ -1,0 +1,96 @@
+import{c as g,k as N,r as i,t as O,j as e,B as y,A as H,h as le,I as oe,H as I,i as ce}from"./index-BKXw_VyK.js";import{A as _,b as S,a as C}from"./avatar-BZdplzq1.js";import{B as q}from"./BottomNavigation-BmO9oE0V.js";import{W as V}from"./wifi-off-DrD93Xqr.js";import{m as Q}from"./proxy-BXaEAfrz.js";import"./index-D7UJh6tX.js";import"./index-YajLREcw.js";import"./index-oVrvYLc-.js";import"./house-ChbwIVOP.js";import"./shopping-bag-DoBm2djZ.js";import"./message-circle-B3JmwOyU.js";import"./user-Cp2_ijPu.js";/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const de=[["path",{d:"M18 6 7 17l-5-5",key:"116fxf"}],["path",{d:"m22 10-7.5 7.5L13 16",key:"ke71qq"}]],G=g("check-check",de);/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const me=[["circle",{cx:"12",cy:"12",r:"1",key:"41hilf"}],["circle",{cx:"12",cy:"5",r:"1",key:"gxeob9"}],["circle",{cx:"12",cy:"19",r:"1",key:"lyex9k"}]],ue=g("ellipsis-vertical",me);/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const he=[["path",{d:"M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z",key:"131961"}],["path",{d:"M19 10v2a7 7 0 0 1-14 0v-2",key:"1vc78b"}],["line",{x1:"12",x2:"12",y1:"19",y2:"22",key:"x3vr5v"}]],xe=g("mic",he);/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const fe=[["path",{d:"M13.234 20.252 21 12.3",key:"1cbrk9"}],["path",{d:"m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486",key:"1pkts6"}]],pe=g("paperclip",fe);/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const be=[["path",{d:"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",key:"1ffxy3"}],["path",{d:"m21.854 2.147-10.94 10.939",key:"12cjpa"}]],ye=g("send",be);/**
+ * @license lucide-react v0.487.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const ge=[["path",{d:"M12 20h.01",key:"zekei9"}],["path",{d:"M2 8.82a15 15 0 0 1 20 0",key:"dnpr2z"}],["path",{d:"M5 12.859a10 10 0 0 1 14 0",key:"1x1e6c"}],["path",{d:"M8.5 16.429a5 5 0 0 1 7 0",key:"1bycff"}]],J=g("wifi",ge),A={getConversations:async(h=10,m=1,d)=>{try{const o={limit:h,offset:m};return d&&(o.type=d),(await N.get("/message/list",{params:o})).data}catch(o){throw console.error("Error fetching conversations:",o),o}},searchConversations:async(h,m=10,d=1)=>{try{return(await N.get("/message/search-list",{params:{name:h,limit:m,offset:d}})).data}catch(o){throw console.error("Error searching conversations:",o),o}},getMessages:async(h,m,d,o,t=10,l=1)=>{try{const u={limit:t,offset:l};return h?u.conversation_id=h:m?u.vendor_id=m:d?u.delivery_man_id=d:o!==void 0&&(u.admin_id=1),(await N.get("/message/details",{params:u})).data}catch(u){throw console.error("Error fetching messages:",u),u}},sendMessage:async(h,m,d,o,t)=>{try{const l=new FormData;return l.append("message",h),m?l.append("conversation_id",m.toString()):d&&o!==void 0?(l.append("receiver_type",d),l.append("receiver_id",o.toString())):d==="admin"&&(l.append("receiver_type","admin"),l.append("receiver_id","0")),t&&l.append("image[]",t),(await N.post("/message/send",l)).data}catch(l){throw console.error("Error sending message:",l),l}}};function De({onBack:h,onNavigate:m,cartItemCount:d=0,wsUrl:o="ws://localhost:8080"}){const[t,l]=i.useState(null),[u,M]=i.useState(""),[v,K]=i.useState(!1),[U,ve]=i.useState(""),[Z,E]=i.useState([]),[we,F]=i.useState(!1),B=i.useRef(null),T=i.useRef();i.useRef(0);const D={id:"bery-ai",name:"Bery AI Assistant",lastMessage:"I'm here to help with your finances!",timestamp:"Now",unread:0,isAI:!0,isOnline:!0},[R,w]=i.useState({"bery-ai":[{id:1,text:`Hello! I'm Bery AI, your financial assistant. I can help you with:
+
+• Balance inquiries
+• Investment advice
+• Transaction support
+• Marketplace guidance
+
+How can I help you today?`,isUser:!1,timestamp:new Date(Date.now()-6e4),status:"read"}]}),[j,W]=i.useState(""),[X,je]=i.useState(null),[L,Ne]=i.useState(null),P=i.useRef(null),$=i.useRef(null),b=i.useRef(null);i.useEffect(()=>{Y();const s=setInterval(Y,3e4);return()=>clearInterval(s)},[]);const Y=async()=>{try{F(!0);const a=(await A.getConversations()).conversations.map(n=>{let c="Unknown",x="",r=0,f="admin",p;return n.sender_type==="customer"?(p=n.receiver,f=n.receiver_type,r=n.receiver_id):(p=n.sender,f=n.sender_type,r=n.sender_id),p?(c=`${p.f_name||""} ${p.l_name||""}`.trim(),x=p.image||"",(f==="admin"||!r)&&(c="Support Admin")):f==="admin"?c="Support Admin":c="Unknown User",{id:n.id.toString(),name:c,avatar:x,lastMessage:n.last_message?.message||"No messages",timestamp:n.last_message_time?new Date(n.last_message_time).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"",unread:n.unread_message_count||0,isOnline:!1,conversationId:n.id,receiverType:f,receiverId:r}});E([D,...a]),K(!0)}catch(s){console.error("Failed to fetch conversations",s),E([D])}finally{F(!1)}};i.useEffect(()=>(t&&!t.isAI?(k(t),b.current&&clearInterval(b.current),b.current=setInterval(()=>{k(t,!0)},5e3)):b.current&&clearInterval(b.current),()=>{b.current&&clearInterval(b.current)}),[t]);const k=async(s,a=!1)=>{try{if(!s.conversationId&&!s.receiverId)return;const n=await A.getMessages(s.conversationId,s.receiverType==="vendor"?s.receiverId:void 0,s.receiverType==="delivery_man"?s.receiverId:void 0,s.receiverType==="admin"?1:void 0),c=n.messages.map(r=>({id:r.id,text:r.message,isUser:r.sender_id!==s.receiverId,timestamp:new Date(r.created_at),status:"read"})).map(r=>{const p=(n.conversation.sender_type==="customer"&&r.id,!1);return r}),x=n.messages.map(r=>{const f=n.conversation,ne=f.sender_type==="customer"?f.sender_id:f.receiver_id,ie=r.sender_id===ne;return{id:r.id,text:r.message,isUser:ie,timestamp:new Date(r.created_at),status:"read",images:r.file_full_url&&r.file_full_url.length>0?r.file_full_url:void 0}}).reverse();w(r=>({...r,[s.id]:x}))}catch(n){console.error("Error fetching messages",n),a||O.error("Failed to load messages")}};i.useEffect(()=>()=>{B.current&&B.current.close(),T.current&&clearTimeout(T.current)},[]);const ee=()=>{$.current?.scrollIntoView({behavior:"smooth"})};i.useEffect(()=>{t&&ee()},[R,t]);const z=async()=>{if(!j.trim()||!t)return;const s=j.trim();W("");const a=Date.now(),n={id:a,text:s,isUser:!0,timestamp:new Date,status:"sent"};if(w(c=>({...c,[t.id]:[...c[t.id]||[],n]})),t.isAI){setTimeout(()=>{const c={id:Date.now()+1,text:se(s),isUser:!1,timestamp:new Date,status:"read"};w(x=>({...x,[t.id]:[...x[t.id].map(r=>r.id===a?{...r,status:"read"}:r),c]}))},1e3);return}try{await A.sendMessage(s,t.conversationId,t.receiverType,t.receiverId),await k(t,!0)}catch(c){console.error("Failed to send message",c),O.error("Failed to send message"),w(x=>({...x,[t.id]:x[t.id].filter(r=>r.id!==a)}))}},se=s=>{const a=s.toLowerCase();return a.includes("balance")||a.includes("money")||a.includes("wallet")?`Your current balance is:
+
+₿ Total: 119,260
+≈ $13,400 (1 USD = 8.9 ₿)
+
+Would you like to see your transaction history or investment portfolio?`:a.includes("invest")?`Great question! We have several investment options:
+
+📊 Fixed Deposit: 6% APY (Low risk)
+💰 Lending Pool: 10% APY (Medium risk)
+📈 Equity Pool: 15% APY (High risk)
+🚀 Venture Capital: 30% APY (High risk/reward)
+🏢 Real Estate: 12% APY (Medium risk)
+
+Which interests you most?`:a.includes("send")||a.includes("transfer")?`To send money:
+
+1. Tap 'Send' on your wallet
+2. Select recipient or enter wallet ID
+3. Enter amount in Bery (₿)
+4. Confirm transaction
+
+You can send to any Bery user instantly with zero fees! Need help with a specific transfer?`:a.includes("marketplace")||a.includes("buy")||a.includes("shop")?`The Bery Marketplace has:
+
+🛍️ Products: Electronics, home goods, fashion & more
+💼 Services: Design, development, marketing, video editing
+
+All payments accepted in Bery (₿). Want me to show you featured items?`:a.includes("bery")||a.includes("currency")?`Bery (₿) is the platform's native currency!
+
+💱 Exchange Rate: 1 USD = 8.9 ₿
+✅ Use for all marketplace purchases
+⚡ Instant transfers, zero fees
+🌍 Accepted globally on Bery
+
+You can convert USD to Bery anytime from your wallet!`:a.includes("hi")||a.includes("hello")||a.includes("hey")?`Hi there! 👋 I'm Bery AI, your financial assistant.
+
+I can help you with:
+• Account & balance info
+• Investment recommendations
+• Transaction support
+• Marketplace guidance
+• Currency conversions
+
+What would you like to know?`:a.includes("help")||a.includes("support")?`I'm here to help! You can ask me about:
+
+💰 Wallet & balances
+📊 Investments & returns
+💸 Sending & receiving money
+🛒 Marketplace purchases
+₿ Bery currency info
+🌍 Platform features
+
+Just ask your question and I'll do my best to help!`:`I'm here to help with your Bery account! You can ask me about:
+
+• Your balance & wallet
+• Investment opportunities
+• Sending money
+• The marketplace
+• Bery currency
+
+What would you like to know?`},te=s=>s.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),re=Z.filter(s=>s.name.toLowerCase().includes(u.toLowerCase()));if(!t)return e.jsxs("div",{className:"h-screen flex flex-col bg-[#0a0a1a] pb-32",children:[e.jsxs("div",{className:"bg-[#1a1d24] px-5 pt-14 pb-4 flex-shrink-0 border-b border-slate-800/50",children:[e.jsxs("div",{className:"flex items-center gap-4 mb-4",children:[e.jsx(y,{variant:"ghost",size:"icon",onClick:h,className:"text-slate-300 hover:bg-slate-800/50 rounded-full h-9 w-9",children:e.jsx(H,{className:"w-5 h-5"})}),e.jsx("h1",{className:"text-xl text-white flex-1",style:{fontFamily:"Inter, sans-serif",fontWeight:700},children:"Messages"}),e.jsx("div",{className:"flex items-center gap-2",children:v?e.jsx(J,{className:"w-4 h-4 text-green-500"}):e.jsx(V,{className:"w-4 h-4 text-red-500"})})]}),U&&e.jsx("div",{className:"mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg",children:e.jsx("p",{className:"text-xs text-red-400",children:U})}),e.jsxs("div",{className:"relative",children:[e.jsx(le,{className:"absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"}),e.jsx(oe,{value:u,onChange:s=>M(s.target.value),placeholder:"Search contacts...",className:"pl-10 bg-[#2a2f38] border-slate-700/40 text-white placeholder:text-slate-500 h-10 rounded-xl"})]})]}),e.jsx("div",{className:"flex-1 overflow-y-auto",children:re.map((s,a)=>e.jsxs(Q.button,{initial:{opacity:0,x:-20},animate:{opacity:1,x:0},transition:{delay:a*.05,duration:.3},onClick:()=>l(s),className:"w-full px-5 py-4 flex items-center gap-3 hover:bg-slate-800/30 transition-colors border-b border-slate-800/30",children:[e.jsxs("div",{className:"relative",children:[s.isAI?e.jsx("div",{className:"w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg",children:e.jsx(I,{className:"w-7 h-7 text-white"})}):e.jsxs(_,{className:"w-14 h-14 border-2 border-slate-700/50",children:[e.jsx(S,{src:s.avatar}),e.jsx(C,{children:s.name[0]})]}),s.isOnline&&e.jsx("div",{className:"absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0a0a1a]"})]}),e.jsxs("div",{className:"flex-1 min-w-0 text-left",children:[e.jsxs("div",{className:"flex items-center justify-between mb-1",children:[e.jsx("p",{className:"text-sm text-white truncate",style:{fontFamily:"Inter, sans-serif",fontWeight:600},children:s.name}),e.jsx("span",{className:"text-xs text-slate-400 ml-2 flex-shrink-0",children:s.timestamp})]}),e.jsxs("div",{className:"flex items-center justify-between",children:[e.jsx("p",{className:"text-sm text-slate-400 truncate flex-1",children:s.lastMessage}),s.unread>0&&e.jsx("div",{className:"ml-2 flex-shrink-0 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center",children:e.jsx("span",{className:"text-xs text-white",style:{fontFamily:"Inter, sans-serif",fontWeight:600},children:s.unread})})]})]})]},s.id))}),e.jsx(q,{currentScreen:"ai-chat",onNavigate:m,cartItemCount:d})]});const ae=R[t.id]||[];return e.jsxs("div",{className:"h-screen flex flex-col bg-gradient-to-b from-[#0a0a1a] via-[#0d0d1d] to-[#0a0a1a] pb-32",children:[e.jsx("div",{className:"bg-gradient-to-b from-[#1a1d24] to-[#15181f] px-4 pt-14 pb-4 flex-shrink-0 border-b border-slate-800/50 shadow-xl",children:e.jsxs("div",{className:"flex items-center gap-3",children:[e.jsx(y,{variant:"ghost",size:"icon",onClick:()=>l(null),className:"text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-xl h-10 w-10 transition-all",children:e.jsx(H,{className:"w-5 h-5"})}),e.jsxs("div",{className:"relative",children:[t.isAI?e.jsx("div",{className:"w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-900/30",children:e.jsx(I,{className:"w-6 h-6 text-white"})}):e.jsxs(_,{className:"w-11 h-11 border-2 border-slate-700/50 rounded-xl",children:[e.jsx(S,{src:t.avatar}),e.jsx(C,{children:t.name[0]})]}),t.isOnline&&e.jsx("div",{className:"absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#1a1d24]"})]}),e.jsxs("div",{className:"flex-1 min-w-0",children:[e.jsx("h1",{className:"text-sm text-white truncate",style:{fontFamily:"Inter, sans-serif",fontWeight:600},children:t.name}),e.jsxs("div",{className:"flex items-center gap-1.5",children:[e.jsx("p",{className:"text-xs text-slate-400",children:t.isOnline?t.isAI?"AI Assistant":"Active now":"Offline"}),t.isOnline&&e.jsx("div",{className:"w-1 h-1 rounded-full bg-green-500"})]})]}),e.jsx("div",{className:"flex items-center gap-2",children:v?e.jsxs("div",{className:"flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-lg",children:[e.jsx(J,{className:"w-3.5 h-3.5 text-green-500"}),e.jsx("span",{className:"text-xs text-green-400",style:{fontFamily:"Inter, sans-serif",fontWeight:500},children:"Live"})]}):e.jsxs("div",{className:"flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/30 rounded-lg",children:[e.jsx(V,{className:"w-3.5 h-3.5 text-red-500"}),e.jsx("span",{className:"text-xs text-red-400",style:{fontFamily:"Inter, sans-serif",fontWeight:500},children:"Offline"})]})}),e.jsx(y,{variant:"ghost",size:"icon",className:"text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-xl h-10 w-10 transition-all",children:e.jsx(ue,{className:"w-5 h-5"})})]})}),e.jsx("div",{className:"flex-1 overflow-y-auto px-4 py-4",children:e.jsxs("div",{className:"max-w-2xl mx-auto space-y-3",children:[ae.map((s,a)=>e.jsxs(Q.div,{initial:{opacity:0,y:10},animate:{opacity:1,y:0},transition:{duration:.3,ease:"easeOut"},className:`flex gap-3 ${s.isUser?"flex-row-reverse":"flex-row"}`,children:[!s.isUser&&e.jsx("div",{className:"flex-shrink-0 mt-1",children:t.isAI?e.jsx("div",{className:"w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg",children:e.jsx(I,{className:"w-4 h-4 text-white"})}):e.jsxs(_,{className:"w-8 h-8 border-2 border-slate-700/50",children:[e.jsx(S,{src:t.avatar}),e.jsx(C,{className:"text-xs",children:t.name[0]})]})}),e.jsxs("div",{className:`flex flex-col ${s.isUser?"items-end":"items-start"} max-w-[75%]`,children:[e.jsxs("div",{className:`rounded-2xl px-4 py-3 ${s.isUser?"bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-900/20":t.isAI?"bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/50 text-white shadow-lg":"bg-slate-800/80 border border-slate-700/30 text-white shadow-md"}`,style:{backdropFilter:"blur(10px)"},children:[s.images&&s.images.length>0&&e.jsx("div",{className:"mb-2 space-y-2",children:s.images.map((n,c)=>e.jsx("img",{src:n,alt:"attachment",className:"rounded-lg max-w-full h-auto object-cover border border-white/10",style:{maxHeight:"200px"}},c))}),s.text&&e.jsx("p",{className:"text-sm leading-relaxed break-words whitespace-pre-line",style:{fontFamily:"Inter, sans-serif"},children:s.text})]}),e.jsxs("div",{className:`flex items-center gap-1.5 mt-1 px-1 ${s.isUser?"flex-row-reverse":"flex-row"}`,children:[e.jsx("span",{className:"text-xs text-slate-500",children:te(s.timestamp)}),s.isUser&&s.status&&e.jsxs("span",{className:"text-slate-400",children:[s.status==="sent"&&e.jsx(ce,{className:"w-3 h-3"}),s.status==="delivered"&&e.jsx(G,{className:"w-3 h-3"}),s.status==="read"&&e.jsx(G,{className:"w-3 h-3 text-blue-500"})]})]})]})]},s.id)),e.jsx("div",{ref:$})]})}),e.jsxs("div",{className:"px-4 pb-6 flex-shrink-0 bg-gradient-to-b from-[#1a1d24] to-[#0a0a1a] border-t border-slate-800/50",children:[L&&e.jsx("div",{className:"pt-3 px-1 flex items-center gap-2",children:e.jsxs("div",{className:"relative group",children:[e.jsx("img",{src:L,alt:"preview",className:"h-16 w-16 object-cover rounded-lg border border-slate-600"}),e.jsx("button",{onClick:clearFile,className:"absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md hover:bg-red-600 transition-colors",children:e.jsx("div",{className:"w-4 h-4 flex items-center justify-center text-xs",children:"×"})})]})}),e.jsxs("div",{className:"flex items-center gap-3 pt-4 max-w-2xl mx-auto",children:[e.jsx("input",{type:"file",ref:P,onChange:handleFileSelect,className:"hidden",accept:"image/*"}),e.jsx(y,{variant:"ghost",size:"icon",onClick:()=>P.current?.click(),className:"text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl h-11 w-11 flex-shrink-0 transition-all",children:e.jsx(pe,{className:"w-5 h-5"})}),e.jsx("div",{className:"flex-1 relative",children:e.jsx("input",{type:"text",value:j,onChange:s=>W(s.target.value),onKeyPress:s=>s.key==="Enter"&&z(),placeholder:"Type a message...",disabled:!v,className:"w-full bg-slate-800/50 border-slate-700/40 text-white placeholder:text-slate-500 h-12 px-5 rounded-2xl focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm cursor-text",style:{fontFamily:"Inter, sans-serif",cursor:"text"}})}),j.trim()||X?e.jsx(y,{onClick:z,disabled:!v,className:"h-11 w-11 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 flex-shrink-0 p-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-900/30 transition-all",children:e.jsx(ye,{className:"w-5 h-5"})}):e.jsx(y,{variant:"ghost",size:"icon",disabled:!v,className:"text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl h-11 w-11 flex-shrink-0 disabled:opacity-50 transition-all",children:e.jsx(xe,{className:"w-5 h-5"})})]})]}),e.jsx(q,{currentScreen:"ai-chat",onNavigate:m,cartItemCount:d})]})}export{De as AiChat};
