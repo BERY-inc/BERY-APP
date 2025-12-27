@@ -6,6 +6,7 @@ import { ArrowLeft, ShoppingCart, Wallet, Shield, X, MapPin, Phone, Edit2 } from
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { Haptics, NotificationType } from "@capacitor/haptics";
+import type { CartItem } from "./ShoppingCart";
 
 // Modal component for confirmation
 const ConfirmationModal = ({ 
@@ -20,7 +21,7 @@ const ConfirmationModal = ({
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  cartItems: any[];
+  cartItems: CartItem[];
   totalBery: number;
   totalUSD: number;
   isProcessing: boolean;
@@ -106,24 +107,13 @@ const ConfirmationModal = ({
   );
 };
 
-interface CartItem {
-  id: number;
-  name: string;
-  price: string;
-  numericPrice?: number;
-  usdPrice: string;
-  image?: string;
-  quantity: number;
-  category: string;
-}
-
 interface CheckoutPageProps {
   cartItems: CartItem[];
   totalBery: number;
   totalUSD: number;
   walletBalance: number;
   onBack: () => void;
-  onConfirmPurchase: (paymentMethod: "bery", amount: number) => void;
+  onConfirmPurchase: (paymentMethod: "bery", amount: number) => void | Promise<void>;
 }
 
 export function CheckoutPage({ 
@@ -209,13 +199,13 @@ export function CheckoutPage({
     } catch {}
     
     setIsProcessing(true);
-    
-    // Simulate processing delay
-    setTimeout(() => {
+
+    try {
       const amount = finalTotalBery;
-      onConfirmPurchase("bery", amount);
+      await Promise.resolve(onConfirmPurchase("bery", amount));
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+    }
   };
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-32">
@@ -268,7 +258,7 @@ export function CheckoutPage({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm text-white font-medium truncate">{item.name}</h3>
-                    <p className="text-xs text-slate-400 mb-1">{item.category}</p>
+                    <p className="text-xs text-slate-400 mb-1">{item.seller}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-300">Qty: {item.quantity}</span>
                       <span className="text-sm text-white font-medium">

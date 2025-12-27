@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 export interface Zone {
     id: number;
@@ -22,30 +22,33 @@ export interface Module {
 
 class MetadataService {
     async getZones(): Promise<Zone[]> {
-        try {
-            const response = await apiClient.get<Zone[]>('/api/v1/zone/list');
-            return response.data;
-        } catch (error) {
-            throw error;
-        }
+        if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+        const { data, error } = await supabase
+            .from('zones')
+            .select('id, name, display_name, status, coordinates, formated_coordinates')
+            .order('id', { ascending: true });
+        if (error) throw new Error(error.message);
+        return (data ?? []) as any;
     }
 
     async getModules(): Promise<Module[]> {
-        try {
-            const response = await apiClient.get<Module[]>('/api/v1/module');
-            return response.data;
-        } catch (error) {
-            throw error;
-        }
+        if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+        const { data, error } = await supabase
+            .from('modules')
+            .select('id, module_name, module_type, thumbnail, status')
+            .order('id', { ascending: true });
+        if (error) throw new Error(error.message);
+        return (data ?? []) as any;
     }
 
     async getCategories(): Promise<any[]> {
-        try {
-            const response = await apiClient.get<any[]>('/api/v1/categories');
-            return response.data;
-        } catch (error) {
-            return [];
-        }
+        if (!isSupabaseConfigured || !supabase) return [];
+        const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .order('id', { ascending: true });
+        if (error) return [];
+        return data ?? [];
     }
 }
 

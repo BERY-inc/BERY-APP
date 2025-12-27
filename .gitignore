@@ -1,0 +1,28 @@
+node_modules/
+.vite/
+dist/
+build/
+coverage/
+.cache/
+.parcel-cache/
+
+.env
+.env.*
+!.env.example
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+
+Backend/node_modules/
+Backend/.env
+
+Mobile App/node_modules/
+Mobile App/build/
+Mobile App/dist/
+Mobile App/.env
+Mobile App/.env.*

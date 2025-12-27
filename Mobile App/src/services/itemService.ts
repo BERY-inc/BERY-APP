@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 const isDev = !!(import.meta as any).env?.DEV;
 
@@ -67,289 +67,235 @@ function generateGuestId(): string {
   return `${Date.now()}${random}`;
 }
 
-// Get proper guest ID from backend
-async function getGuestIdFromBackend(): Promise<string> {
-  try {
-    const response = await apiClient.post('/api/v1/auth/guest/request', {
-      fcm_token: 'guest_' + Date.now() // Simple FCM token for guest
-    });
-    return response.data.guest_id;
-  } catch (error) {
-    if (isDev) {
-      console.error('Failed to get guest ID from backend, using fallback:', error);
-    }
-    // Fallback to local generation if backend fails
-    return generateGuestId();
+function getOrCreateGuestId(): string {
+  let guestId = localStorage.getItem('guest_id');
+  if (!guestId) {
+    guestId = generateGuestId();
+    localStorage.setItem('guest_id', guestId);
   }
+  return guestId;
 }
 
 // Ensure we have a moduleId for cart operations
 async function ensureModuleId(): Promise<void> {
   let moduleId = localStorage.getItem('moduleId');
   if (!moduleId) {
-    // Try to get default module from backend
     try {
-      const response = await apiClient.get('/api/v1/module');
-      if (response.data?.data && response.data.data.length > 0) {
-        moduleId = response.data.data[0].id.toString();
-        localStorage.setItem('moduleId', moduleId);
-      } else {
-        moduleId = '1';
-        localStorage.setItem('moduleId', moduleId);
-      }
+      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+      const { data, error } = await supabase.from('modules').select('id').order('id', { ascending: true }).limit(1);
+      if (error) throw new Error(error.message);
+      const first = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      moduleId = first?.id ? String(first.id) : '1';
+      localStorage.setItem('moduleId', moduleId);
     } catch (error) {
       if (isDev) {
-        console.error('Failed to get module from backend, using fallback:', error);
+        console.error('Failed to resolve moduleId, using fallback:', error);
       }
-      // Use a common default module ID
       moduleId = '1';
       localStorage.setItem('moduleId', moduleId);
     }
   }
 }
 
+async function getAuthOwner(): Promise<{ userId: string | null; guestId: string | null }> {
+  if (!isSupabaseConfigured || !supabase) return { userId: null, guestId: getOrCreateGuestId() };
+  const { data, error } = await supabase.auth.getUser();
+  if (error) return { userId: null, guestId: getOrCreateGuestId() };
+  const userId = data.user?.id ?? null;
+  if (userId) return { userId, guestId: null };
+  return { userId: null, guestId: getOrCreateGuestId() };
+}
+
 class ItemService {
   // Get latest products with graceful fallbacks
   async getLatestProducts(options?: { store_id?: number; category_id?: number; limit?: number; offset?: number }): Promise<Item[]> {
-    try {
-      // Determine store_id: prefer provided, else localStorage (selectedStoreId or storeId), else fetch latest stores
-      let storeId = options?.store_id;
-      if (!storeId) {
-        const storedSelected = localStorage.getItem('selectedStoreId');
-        const storedId = localStorage.getItem('storeId');
-        if (storedSelected && !isNaN(Number(storedSelected))) {
-          storeId = Number(storedSelected);
-        } else if (storedId && !isNaN(Number(storedId))) {
-          storeId = Number(storedId);
-        }
-      }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
 
-      if (!storeId || Number.isNaN(storeId)) {
-        const storeRes = await apiClient.get<{ stores: any[] }>('/api/v1/stores/latest');
-        const storesArr = storeRes.data?.stores ?? [];
-        const firstStore = Array.isArray(storesArr) && storesArr.length > 0 ? storesArr[0] : null;
-        if (firstStore && firstStore.id) {
-          storeId = Number(firstStore.id);
-          try { localStorage.setItem('storeId', String(storeId)); } catch {}
-        }
-      }
+    const numericLimit = Math.max(1, Math.min(100, Number(options?.limit) || 20));
+    const numericOffset = Math.max(0, Number(options?.offset) || 0);
+    const from = numericOffset;
+    const to = numericOffset + numericLimit - 1;
 
-      const params: any = {
-        store_id: storeId,
-        limit: options?.limit ?? 20,
-        offset: options?.offset ?? 0,
-      };
-      
-      // The API requires category_id for /items/latest endpoint.
-      // If category_id is provided, use /items/latest.
-      // If NOT provided, use /items/popular which works with just store_id.
-      if (options?.category_id && options.category_id > 0) {
-        params.category_id = options.category_id;
-        const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/latest', { params });
-        const products = response.data.products;
-        return Array.isArray(products) ? products : [];
-      } else {
-        // Fallback to popular items for the store if no category is selected
-        // This avoids the "category_id field is required" error
-        const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/popular', { params });
-        const products = response.data.products;
-        return Array.isArray(products) ? products : [];
-      }
-    } catch (error: any) {
-      // Fallback to popular or recommended if latest fails (e.g., 500)
-      try {
-        const fallbackPopular = await apiClient.get<{ products: Item[] }>('/api/v1/items/popular');
-        return fallbackPopular.data.products ?? [];
-      } catch (popErr) {
-        try {
-          const fallbackRecommended = await apiClient.get<{ products: Item[] }>('/api/v1/items/recommended');
-          return fallbackRecommended.data.products ?? [];
-        } catch (recErr) {
-          throw error;
-        }
+    let storeId = options?.store_id;
+    if (!storeId) {
+      const storedSelected = localStorage.getItem('selectedStoreId');
+      const storedId = localStorage.getItem('storeId');
+      if (storedSelected && !Number.isNaN(Number(storedSelected))) {
+        storeId = Number(storedSelected);
+      } else if (storedId && !Number.isNaN(Number(storedId))) {
+        storeId = Number(storedId);
       }
     }
+
+    let q = supabase.from('items').select('*');
+    if (storeId && Number.isFinite(Number(storeId))) q = q.eq('store_id', Number(storeId));
+    if (options?.category_id && Number(options.category_id) > 0) q = q.eq('category_id', Number(options.category_id));
+
+    const { data, error } = await q.order('created_at', { ascending: false }).range(from, to);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   }
 
   // Get popular products
   async getPopularProducts(): Promise<Item[]> {
-    try {
-      const response = await apiClient.get<{ products: Item[] }>('/api/v1/items/popular');
-      return response.data.products;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const { data, error } = await supabase.from('items').select('*').order('created_at', { ascending: false }).limit(20);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   }
 
   // Get product details
   async getProductDetails(itemId: number): Promise<ItemDetails> {
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const { data, error } = await supabase.from('items').select('*').eq('id', itemId).maybeSingle();
+    if (error) throw new Error(error.message);
+    const base: any = data || {};
+
+    let images: string[] = [];
     try {
-      const response = await apiClient.get<ItemDetails>(`/api/v1/items/details/${itemId}`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+      const imgRes = await supabase.from('item_images').select('url').eq('item_id', itemId).order('id', { ascending: true });
+      if (!imgRes.error) {
+        images = (imgRes.data ?? []).map((r: any) => String(r?.url || '').trim()).filter(Boolean);
+      }
+    } catch {}
+
+    return {
+      ...base,
+      images: Array.isArray(base.images) ? base.images : images,
+      choice_options: Array.isArray(base.choice_options) ? base.choice_options : [],
+      variations: Array.isArray(base.variations) ? base.variations : [],
+      add_ons: Array.isArray(base.add_ons) ? base.add_ons : [],
+      tags: Array.isArray(base.tags) ? base.tags : [],
+      organic: Number.isFinite(Number(base.organic)) ? Number(base.organic) : 0,
+      stock: Number.isFinite(Number(base.stock)) ? Number(base.stock) : 0,
+    } as ItemDetails;
   }
 
   // Search products
   async searchProducts(query: string): Promise<Item[]> {
-    try {
-      const response = await apiClient.get<{ products: Item[] }>(`/api/v1/items/search?name=${query}`);
-      return response.data.products;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const q = String(query || '').trim();
+    if (!q) return [];
+    const { data, error } = await supabase.from('items').select('*').ilike('name', `%${q}%`).order('created_at', { ascending: false }).limit(50);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   }
 
   // Get products by category
   async getProductsByCategory(categoryId: number): Promise<Item[]> {
-    try {
-      const response = await apiClient.get<{ products: Item[] }>(`/api/v1/categories/items/${categoryId}`);
-      return response.data.products;
-    } catch (error) {
-      throw error;
-    }
+    return this.getLatestProducts({ category_id: categoryId });
   }
 
   async getCartItems(): Promise<CartItem[]> {
-    try {
-      await ensureModuleId();
-      
-      const token = localStorage.getItem('authToken');
-      const currentModuleId = localStorage.getItem('moduleId');
-      
-      const headers: any = {
-        'moduleId': currentModuleId,
-        'zoneId': localStorage.getItem('zoneId')
-      };
-      
-      const params: any = {};
-      
-      if (!token) {
-        let guestId = localStorage.getItem('guest_id');
-        if (!guestId) {
-          guestId = await getGuestIdFromBackend();
-          localStorage.setItem('guest_id', guestId);
-        }
-        params.guest_id = guestId;
-      } else {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await apiClient.get<any>('/api/v1/customer/cart/list', {
-        params: params,
-        headers: headers
-      });
-      const data = response.data;
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.cart_items)) return data.cart_items;
-      return [];
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    await ensureModuleId();
+    const { userId, guestId } = await getAuthOwner();
+
+    let q = supabase
+      .from('cart_items')
+      .select('id, item_id, quantity, price, discount, tax, variant, variation, add_ons, add_on_qtys, add_on_prices, item:items(*)')
+      .order('id', { ascending: true });
+
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
+
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   }
 
   async addToCart(data: AddToCartRequest): Promise<any> {
     await ensureModuleId();
-    
-    const token = localStorage.getItem('authToken');
-    const payload = { ...data };
 
-    if (!payload.model) {
-      payload.model = 'Item';
-    }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const { userId, guestId } = await getAuthOwner();
 
+    const payload: any = {
+      user_id: userId,
+      guest_id: guestId,
+      item_id: Number(data.item_id),
+      quantity: Math.max(1, Number(data.quantity) || 1),
+      price: Number(data.price) || 0,
+      variant: data.variant ?? '',
+      variation: data.variation ?? [],
+      add_ons: data.add_ons ?? [],
+      add_on_qtys: data.add_on_qtys ?? [],
+    };
+
+    let existingId: any = null;
     try {
-            if (!token) {
-              let guestId = localStorage.getItem('guest_id');
-              if (!guestId) {
-                guestId = await getGuestIdFromBackend();
-                localStorage.setItem('guest_id', guestId);
-              }
-              payload.guest_id = guestId;
-            }
-
-      const response = await apiClient.post('/api/v1/customer/cart/add', payload);
-      return response.data;
-    } catch (error) {
-      const errorMessage = (error instanceof Error ? error.message : String(error ?? '')).toLowerCase();
-      const isItemAlreadyExists =
-        errorMessage.includes('item already exists') ||
-        errorMessage.includes('already exists') ||
-        errorMessage.includes('already in cart');
-
-      if (isItemAlreadyExists) {
-        return { alreadyExists: true, message: error instanceof Error ? error.message : 'Item already exists' };
+      let existingQ = supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('item_id', payload.item_id)
+        .eq('variant', payload.variant)
+        .limit(1);
+      if (userId) existingQ = existingQ.eq('user_id', userId);
+      if (guestId) existingQ = existingQ.eq('guest_id', guestId);
+      const existing = await existingQ.maybeSingle();
+      if (!existing.error && existing.data) {
+        existingId = existing.data.id;
+        const nextQty = Math.max(1, Number(existing.data.quantity || 0) + payload.quantity);
+        const upd = await supabase.from('cart_items').update({ quantity: nextQty, price: payload.price }).eq('id', existingId);
+        if (upd.error) throw new Error(upd.error.message);
+        return { updated: true, id: existingId };
       }
-
-      if (isDev) {
-        console.error('Error adding item to cart:', error);
-      }
-
-      throw error;
+    } catch (e) {
+      if (isDev) console.error('Cart upsert check failed:', e);
     }
+
+    const ins = await supabase.from('cart_items').insert([payload]).select('id').maybeSingle();
+    if (ins.error) throw new Error(ins.error.message);
+    return { created: true, id: ins.data?.id ?? null, existingId };
   }
 
   async updateCart(data: { cart_id: number; quantity: number; price: number; guest_id?: string }): Promise<any> {
-    try {
-      await ensureModuleId();
-      
-      const token = localStorage.getItem('authToken');
-      const payload = { ...data };
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    await ensureModuleId();
+    const { userId, guestId } = await getAuthOwner();
 
-      if (!token) {
-         let guestId = localStorage.getItem('guest_id');
-         if (!guestId) {
-           guestId = await getGuestIdFromBackend();
-           localStorage.setItem('guest_id', guestId);
-         }
-         payload.guest_id = guestId;
-      }
+    let q = supabase
+      .from('cart_items')
+      .update({
+        quantity: Math.max(1, Number(data.quantity) || 1),
+        price: Number(data.price) || 0,
+      })
+      .eq('id', data.cart_id);
 
-      const response = await apiClient.post<any>('/api/v1/customer/cart/update', payload);
-      const responseData = response.data;
-      if (Array.isArray(responseData)) return responseData;
-      return responseData;
-    } catch (error) {
-      throw error;
-    }
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
+
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { updated: true };
   }
 
   async removeCartItem(cart_id: number): Promise<any> {
-    try {
-      await ensureModuleId();
-      
-      const token = localStorage.getItem('authToken');
-      const payload: any = { cart_id };
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    await ensureModuleId();
+    const { userId, guestId } = await getAuthOwner();
 
-      if (!token) {
-        const guestId = localStorage.getItem('guest_id');
-        if (guestId) {
-          payload.guest_id = guestId;
-        }
-      }
+    let q = supabase.from('cart_items').delete().eq('id', cart_id);
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
 
-      const response = await apiClient.delete<any>('/api/v1/customer/cart/remove-item', {
-        data: payload
-      });
-      const data = response.data;
-      if (Array.isArray(data)) return data;
-      return data;
-    } catch (error) {
-      throw error;
-    }
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { deleted: true };
   }
 
   // Clear cart
   async clearCart(): Promise<any> {
-    try {
-      const response = await apiClient.delete<any>('/api/v1/customer/cart/remove');
-      const data = response.data;
-      if (Array.isArray(data)) return data;
-      return data;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const { userId, guestId } = await getAuthOwner();
+
+    let q = supabase.from('cart_items').delete();
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
+
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { cleared: true };
   }
 }
 

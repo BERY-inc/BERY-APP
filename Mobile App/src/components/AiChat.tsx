@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -57,7 +57,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
 
@@ -89,7 +89,30 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearFile = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -206,67 +229,19 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
         contact.receiverType === 'admin' ? 1 : undefined // Admin ID logic
       );
 
-      const mappedMessages: Message[] = data.messages.map((msg: ChatMessage) => ({
-        id: msg.id,
-        text: msg.message,
-        isUser: msg.sender_id !== contact.receiverId, // Assumption: if sender is not the contact (receiver), it's us. 
-        // Better check: msg.sender_id === currentUserId. But we assume we are the 'customer'. 
-        // Actually, for incoming messages, sender_id is the remote user. 
-        // If msg.sender_id === contact.receiverId (the remote user ID), then isUser is false.
-        // Wait, contact.receiverId is the ID of the remote entity (Vendor ID, DM ID).
-        // The message.sender_id refers to UserInfo ID usually. 
-        // Let's look at backend: 
-        // $message->sender_id = $sender->id; (Sender is UserInfo).
-        // If we are customer, our UserInfo ID is different from Vendor's UserInfo ID.
-        // We need to know OUR UserInfo ID to be sure.
-        // However, usually `isUser` means "Is Current Logged In User".
-        // If `msg.sender_id` matches the conversation's `sender_id` (if we created it) OR `receiver_id` (if they created it)...
-        // Simpler: We know `contact` is the OTHER person.
-        // If `msg.sender_id` matches the `contact`'s UserInfo ID, it's them.
-        // But `contact.receiverId` might be VendorID, not UserInfoID.
-        // The backend `getMessages` returns `conversation` with `sender` and `receiver` UserInfos.
-        // We can compare `msg.sender_id` with `conversation.sender_id` and `conversation.receiver_id`.
-        // We know we are 'customer'. 
-        // If `conversation.sender_type` is 'customer', we are sender.
-        // If `conversation.receiver_type` is 'customer', we are receiver.
-        
-        // Let's assume for now:
-        // We need to know who WE are in this conversation.
-        // const isMe = (data.conversation.sender_type === 'customer' && msg.sender_id === data.conversation.sender_id) || 
-        //              (data.conversation.receiver_type === 'customer' && msg.sender_id === data.conversation.receiver_id);
-        
-        timestamp: new Date(msg.created_at),
-        status: "read" // Default
-      })).map(msg => {
-         // Fix isUser logic inside map using the conversation data from response
-         const conv = data.conversation;
-         const isMe = (conv.sender_type === 'customer' && msg.id /* wait, msg doesn't have sender type, just ID */) ? 
-            // We can't access `msg` inside this map easily if we need `data`.
-            // Let's rewrite the map.
-            false : false;
-         return msg;
-      });
-
-      // Correct mapping
       const realMappedMessages: Message[] = data.messages.map((msg: ChatMessage) => {
-         const conv = data.conversation;
-         // Determine if I am sender or receiver of the CONVERSATION
-         const amISender = conv.sender_type === 'customer';
-         const myId = amISender ? conv.sender_id : conv.receiver_id;
-         
-         // If message sender ID matches my ID, it's me.
-         const isUser = msg.sender_id === myId;
-         
-         return {
-            id: msg.id,
-            text: msg.message,
-            isUser: isUser,
-            timestamp: new Date(msg.created_at),
-            status: "read",
-            images: msg.file_full_url && msg.file_full_url.length > 0 
-                ? msg.file_full_url
-                : undefined
-         };
+        const conv = data.conversation;
+        const amISender = conv.sender_type === "customer";
+        const myId = amISender ? conv.sender_id : conv.receiver_id;
+
+        return {
+          id: msg.id,
+          text: msg.message,
+          isUser: msg.sender_id === myId,
+          timestamp: new Date(msg.created_at),
+          status: "read" as const,
+          images: msg.file_full_url && msg.file_full_url.length > 0 ? msg.file_full_url : undefined
+        };
       }).reverse(); // Messages usually come newest first from backend paginate, UI expects oldest first (or handle flex-reverse)
 
       setMessages(prev => ({
@@ -288,6 +263,12 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
       }
     };
   }, []);

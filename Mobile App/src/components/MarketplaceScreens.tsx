@@ -2,9 +2,10 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import * as React from "react";
-import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User, Image as ImageIcon, X, HelpCircle, Copy } from "lucide-react";
-import { storeService, itemService, wishlistService, orderService, metadataService } from '../services';
+import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Wallet, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User, Image as ImageIcon, X, HelpCircle, Copy } from "lucide-react";
+import { storeService, itemService, wishlistService, orderService, metadataService, customerService, authService } from '../services';
 import { toast } from "sonner";
 
 interface ScreenProps {
@@ -2667,114 +2668,1187 @@ export function MyOrdersScreen({ onBack, onNavigate }: ScreenProps) {
 
 export { OrderScreen, OrderDetailsScreen, OrderTrackingScreen, GuestTrackOrderScreen } from './OrderScreens';
 
-export function RefundRequestScreen({ onBack }: ScreenProps) {
+export function RefundRequestScreen({ onBack, onNavigate }: ScreenProps) {
+  const [orderId, setOrderId] = React.useState(() => localStorage.getItem('selectedOrderId') ?? '');
+  const [refundReasons, setRefundReasons] = React.useState<any[]>([]);
+  const [selectedReason, setSelectedReason] = React.useState('');
+  const [details, setDetails] = React.useState('');
+  const [image, setImage] = React.useState<File | null>(null);
+  const [loadingReasons, setLoadingReasons] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchReasons = async () => {
+      try {
+        setLoadingReasons(true);
+        const reasons = await orderService.getRefundReasons();
+        if (!cancelled) setRefundReasons(Array.isArray(reasons) ? reasons : []);
+      } catch {
+        if (!cancelled) setRefundReasons([]);
+      } finally {
+        if (!cancelled) setLoadingReasons(false);
+      }
+    };
+    fetchReasons();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const submit = async () => {
+    const trimmedOrderId = orderId.trim();
+    const reasonText = selectedReason.trim() || details.trim();
+    if (!trimmedOrderId) {
+      toast.error("Order ID is required");
+      return;
+    }
+    if (!reasonText) {
+      toast.error("Refund reason is required");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const ok = await orderService.submitRefundRequest(trimmedOrderId, reasonText, image ?? undefined);
+      if (!ok) {
+        toast.error("Refund request failed");
+        return;
+      }
+      toast.success("Refund request submitted");
+      onNavigate('orders');
+    } catch {
+      toast.error("Refund request failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Refund Request" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-4">
-        <Input placeholder="Order ID" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Input placeholder="Reason" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Button className="bg-blue-600">Submit</Button>
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <Input
+            value={orderId}
+            onChange={(e) => setOrderId(e.target.value)}
+            placeholder="Order ID"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+
+          <div className="space-y-2">
+            <div className="text-xs text-slate-400">
+              {loadingReasons ? 'Loading reasons…' : refundReasons.length > 0 ? 'Refund reason' : 'Refund reason'}
+            </div>
+            <Select value={selectedReason} onValueChange={setSelectedReason}>
+              <SelectTrigger className="w-full bg-[#0a0a1a] border-slate-700/40 text-white">
+                <SelectValue placeholder="Select a reason" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1a2e] border-slate-700/40 text-white">
+                {refundReasons.map((r: any) => (
+                  <SelectItem
+                    key={r?.id ?? r?.reason ?? r?.name}
+                    value={String(r?.reason ?? r?.name ?? '')}
+                    className="text-white focus:bg-blue-600/20 focus:text-white"
+                  >
+                    {String(r?.reason ?? r?.name ?? '')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs text-slate-400">Details (optional)</div>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              rows={3}
+              placeholder="Add extra details for your request"
+              className="w-full rounded-md bg-[#0a0a1a] border border-slate-700/40 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            />
+          </div>
+
+          <div className="rounded-lg border border-slate-700/40 bg-[#0a0a1a] p-3">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+              className="w-full text-xs text-slate-300"
+            />
+            <div className="mt-2 text-xs text-slate-500">
+              {image ? `Selected: ${image.name}` : 'Upload an image (optional).'}
+            </div>
+          </div>
+
+          <Button onClick={submit} className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={submitting}>
+            {submitting ? 'Submitting…' : 'Submit'}
+          </Button>
+        </Card>
       </div>
     </div>
   );
 }
 
-export function PaymentScreen({ onBack }: ScreenProps) {
+export function PaymentScreen({ onBack, onNavigate }: ScreenProps) {
+  const [paymentMethod, setPaymentMethod] = React.useState<'wallet' | 'cash_on_delivery' | 'digital_payment' | 'offline_payment'>(() => {
+    const stored = localStorage.getItem('paymentMethod');
+    if (stored === 'wallet' || stored === 'cash_on_delivery' || stored === 'digital_payment' || stored === 'offline_payment') {
+      return stored;
+    }
+    return 'wallet';
+  });
+  const [orderId, setOrderId] = React.useState(() => localStorage.getItem('selectedOrderId') ?? '');
+  const [paymentUrl, setPaymentUrl] = React.useState(() => localStorage.getItem('paymentWebviewUrl') ?? '');
+  const [order, setOrder] = React.useState<any>(null);
+  const [loadingOrder, setLoadingOrder] = React.useState(false);
+
+  React.useEffect(() => {
+    const nextOrderId = (localStorage.getItem('selectedOrderId') ?? '').toString();
+    if (nextOrderId && nextOrderId !== orderId) setOrderId(nextOrderId);
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchOrder = async () => {
+      const trimmed = orderId.trim();
+      if (!trimmed) {
+        setOrder(null);
+        return;
+      }
+
+      try {
+        setLoadingOrder(true);
+        try {
+          const details = await orderService.getOrderDetails(trimmed);
+          const first = Array.isArray(details) ? details[0] : (details as any);
+          if (!cancelled) setOrder(first ?? null);
+          if (!cancelled && paymentMethod === 'digital_payment' && !paymentUrl.trim()) {
+            const maybeUrl = (first as any)?.payment_url ?? (first as any)?.paymentUrl ?? (first as any)?.payment_link;
+            if (typeof maybeUrl === 'string' && maybeUrl.trim()) setPaymentUrl(maybeUrl.trim());
+          }
+          return;
+        } catch {}
+
+        const res = await orderService.getOrderHistory();
+        const found = (res?.orders ?? []).find((o: any) => String(o?.id) === trimmed) ?? null;
+        if (!cancelled) setOrder(found);
+        if (!cancelled && paymentMethod === 'digital_payment' && !paymentUrl.trim()) {
+          const maybeUrl = (found as any)?.payment_url ?? (found as any)?.paymentUrl ?? (found as any)?.payment_link;
+          if (typeof maybeUrl === 'string' && maybeUrl.trim()) setPaymentUrl(maybeUrl.trim());
+        }
+      } catch {
+        if (!cancelled) setOrder(null);
+      } finally {
+        if (!cancelled) setLoadingOrder(false);
+      }
+    };
+
+    fetchOrder();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  React.useEffect(() => {
+    if (paymentMethod !== 'digital_payment') return;
+    if (paymentUrl.trim()) return;
+    if (!order) return;
+    const maybeUrl = (order as any)?.payment_url ?? (order as any)?.paymentUrl ?? (order as any)?.payment_link;
+    if (typeof maybeUrl === 'string' && maybeUrl.trim()) setPaymentUrl(maybeUrl.trim());
+  }, [order, paymentMethod, paymentUrl]);
+
+  const persist = () => {
+    try { localStorage.setItem('paymentMethod', paymentMethod); } catch {}
+    try { localStorage.setItem('paymentWebviewUrl', paymentUrl); } catch {}
+    try { localStorage.setItem('selectedOrderId', orderId.trim()); } catch {}
+  };
+
+  const proceed = () => {
+    persist();
+    if (paymentMethod === 'digital_payment') {
+      const fallbackUrl =
+        (order as any)?.payment_url ??
+        (order as any)?.paymentUrl ??
+        (order as any)?.payment_link ??
+        '';
+      const url = (paymentUrl.trim() || String(fallbackUrl ?? '').trim()).trim();
+      if (!/^https?:\/\//i.test(url)) {
+        toast.error("Enter a valid payment URL", { description: "URL must start with http:// or https://." });
+        return;
+      }
+      try { localStorage.setItem('paymentWebviewUrl', url); } catch {}
+      onNavigate('payment-webview');
+      return;
+    }
+    if (paymentMethod === 'offline_payment') {
+      onNavigate('offline-payment');
+      return;
+    }
+
+    toast.success("Payment method selected", {
+      description: paymentMethod === 'wallet' ? "Wallet payment will be used." : "Cash on delivery will be used."
+    });
+    onNavigate('orders');
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Payment" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-4">
-        <Placeholder>
-          <div className="flex items-center gap-2 mt-3">
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40">
+          <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-blue-400" />
-            <span className="text-sm text-white">Payment method selection</span>
+            <div className="flex-1">
+              <p className="text-sm text-white font-semibold">Choose payment method</p>
+              <p className="text-xs text-slate-400">Used for your next payment action.</p>
+            </div>
           </div>
-        </Placeholder>
+
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('wallet')}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                paymentMethod === 'wallet'
+                  ? 'border-blue-600 bg-blue-600/10'
+                  : 'border-slate-700/40 bg-transparent hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'wallet' ? 'bg-blue-600' : 'bg-slate-700/50'}`}>
+                    <Wallet className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-semibold">Wallet</p>
+                    <p className="text-xs text-slate-400">Instant payment from wallet balance</p>
+                  </div>
+                </div>
+                {paymentMethod === 'wallet' && <Check className="w-5 h-5 text-blue-400" />}
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('cash_on_delivery')}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                paymentMethod === 'cash_on_delivery'
+                  ? 'border-blue-600 bg-blue-600/10'
+                  : 'border-slate-700/40 bg-transparent hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'cash_on_delivery' ? 'bg-blue-600' : 'bg-slate-700/50'}`}>
+                    <Truck className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-semibold">Cash on Delivery</p>
+                    <p className="text-xs text-slate-400">Pay when the order arrives</p>
+                  </div>
+                </div>
+                {paymentMethod === 'cash_on_delivery' && <Check className="w-5 h-5 text-blue-400" />}
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('digital_payment')}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                paymentMethod === 'digital_payment'
+                  ? 'border-blue-600 bg-blue-600/10'
+                  : 'border-slate-700/40 bg-transparent hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'digital_payment' ? 'bg-blue-600' : 'bg-slate-700/50'}`}>
+                    <Globe className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-semibold">Digital Payment</p>
+                    <p className="text-xs text-slate-400">Pay via hosted payment page</p>
+                  </div>
+                </div>
+                {paymentMethod === 'digital_payment' && <Check className="w-5 h-5 text-blue-400" />}
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('offline_payment')}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                paymentMethod === 'offline_payment'
+                  ? 'border-blue-600 bg-blue-600/10'
+                  : 'border-slate-700/40 bg-transparent hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'offline_payment' ? 'bg-blue-600' : 'bg-slate-700/50'}`}>
+                    <MapPin className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-semibold">Offline Payment</p>
+                    <p className="text-xs text-slate-400">Bank transfer / deposit with receipt</p>
+                  </div>
+                </div>
+                {paymentMethod === 'offline_payment' && <Check className="w-5 h-5 text-blue-400" />}
+              </div>
+            </button>
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-white font-semibold">Payment context</p>
+            {loadingOrder ? (
+              <span className="text-xs text-slate-400">Loading…</span>
+            ) : order ? (
+              <span className="text-xs text-green-300">Order found</span>
+            ) : orderId.trim() ? (
+              <span className="text-xs text-yellow-300">Order not found</span>
+            ) : (
+              <span className="text-xs text-slate-400">Optional</span>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Input
+              value={orderId}
+              onChange={(e) => setOrderId(e.target.value)}
+              placeholder="Order ID (optional)"
+              className="bg-[#0a0a1a] border-slate-700/40 text-white"
+            />
+
+            {paymentMethod === 'digital_payment' && (
+              <Input
+                value={paymentUrl}
+                onChange={(e) => setPaymentUrl(e.target.value)}
+                placeholder="Payment URL (https://...)"
+                className="bg-[#0a0a1a] border-slate-700/40 text-white"
+              />
+            )}
+          </div>
+
+          {order && (
+            <div className="pt-3 border-t border-slate-700/40 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300">Order</span>
+                <span className="text-white">#{order.id}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300">Total</span>
+                <span className="text-white">${Number(order.order_amount || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300">Status</span>
+                <span className="text-white capitalize">{String(order.payment_status || 'unpaid').replace('_', ' ')}</span>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={proceed} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+            Continue
+          </Button>
+        </Card>
       </div>
     </div>
   );
 }
 
-export function PaymentWebviewScreen({ onBack }: ScreenProps) {
+export function PaymentWebviewScreen({ onBack, onNavigate }: ScreenProps) {
+  const [paymentUrl, setPaymentUrl] = React.useState(() => localStorage.getItem('paymentWebviewUrl') ?? '');
+  const url = paymentUrl.trim();
+  const isValidUrl = /^https?:\/\//i.test(url);
+
+  React.useEffect(() => {
+    try { localStorage.setItem('paymentWebviewUrl', paymentUrl); } catch {}
+  }, [paymentUrl]);
+
+  const openExternal = () => {
+    if (!isValidUrl) {
+      toast.error("Enter a valid payment URL", { description: "URL must start with http:// or https://." });
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const markComplete = () => {
+    toast.success("Payment marked as complete", { description: "If applicable, your order will update after verification." });
+    onNavigate('orders');
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Payment Webview" onBack={onBack} />
-      <div className="px-5 -mt-4">
-        <Placeholder />
+      <div className="px-5 -mt-4 space-y-4">
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <p className="text-sm text-white font-semibold">Hosted payment page</p>
+          <Input
+            value={paymentUrl}
+            onChange={(e) => setPaymentUrl(e.target.value)}
+            placeholder="Payment URL (https://...)"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+
+          <div className="flex gap-2">
+            <Button onClick={() => onNavigate('payment')} variant="outline" className="flex-1 bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50">
+              Back
+            </Button>
+            <Button onClick={openExternal} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+              Open
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3 bg-[#1a1a2e] border border-slate-700/40 overflow-hidden">
+          {isValidUrl ? (
+            <iframe
+              src={url}
+              title="Payment"
+              className="w-full h-[520px] rounded-lg bg-[#0a0a1a]"
+              sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            />
+          ) : (
+            <div className="p-4 text-sm text-slate-300">
+              Enter a valid payment URL to load the page here.
+            </div>
+          )}
+        </Card>
+
+        <Button onClick={markComplete} className="w-full bg-green-600 hover:bg-green-700 text-white">
+          I Completed Payment
+        </Button>
       </div>
     </div>
   );
 }
 
-export function OfflinePaymentScreen({ onBack }: ScreenProps) {
+export function OfflinePaymentScreen({ onBack, onNavigate }: ScreenProps) {
+  const [orderId, setOrderId] = React.useState(() => localStorage.getItem('selectedOrderId') ?? '');
+  const [reference, setReference] = React.useState('');
+  const [note, setNote] = React.useState('');
+  const [receipt, setReceipt] = React.useState<File | null>(null);
+
+  const submit = () => {
+    const trimmedRef = reference.trim();
+    if (!trimmedRef) {
+      toast.error("Reference is required", { description: "Add the transaction/reference number from your receipt." });
+      return;
+    }
+    try { localStorage.setItem('selectedOrderId', orderId.trim()); } catch {}
+    toast.success("Offline payment submitted", { description: "Your payment will be verified shortly." });
+    onNavigate('orders');
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Offline Payment" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-4">
-        <Placeholder>
-          <div className="flex items-center gap-2 mt-3">
-            <MapPin className="w-5 h-5 text-blue-400" />
-            <span className="text-sm text-white">Cash on delivery, bank deposit info</span>
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <p className="text-sm text-white font-semibold">Bank transfer / deposit details</p>
+          <div className="space-y-2 text-xs text-slate-300">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Account name</span>
+              <span className="text-white">Bery Marketplace</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Bank</span>
+              <span className="text-white">Bery Bank</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Account number</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText('000123456789'); } catch {}
+                  toast.success("Copied account number");
+                }}
+                className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"
+              >
+                000123456789 <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-        </Placeholder>
+        </Card>
+
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <p className="text-sm text-white font-semibold">Submit proof</p>
+          <Input
+            value={orderId}
+            onChange={(e) => setOrderId(e.target.value)}
+            placeholder="Order ID (optional)"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="Transaction / Reference number"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Note (optional)"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+          <div className="rounded-lg border border-slate-700/40 bg-[#0a0a1a] p-3">
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+              className="w-full text-xs text-slate-300"
+            />
+            <div className="mt-2 text-xs text-slate-500">
+              {receipt ? `Selected: ${receipt.name}` : 'Upload a receipt screenshot or PDF (optional).'}
+            </div>
+          </div>
+
+          <Button onClick={submit} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+            Submit
+          </Button>
+        </Card>
       </div>
     </div>
   );
 }
 
-export function ProfileViewScreen({ onBack }: ScreenProps) {
+export function ProfileViewScreen({ onBack, onNavigate }: ScreenProps) {
+  const [loading, setLoading] = React.useState(true);
+  const [customer, setCustomer] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const info = await customerService.getCustomerInfo();
+        if (!cancelled) setCustomer(info);
+      } catch {
+        if (!cancelled) setCustomer(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fullName = customer ? `${customer.f_name ?? ''} ${customer.l_name ?? ''}`.trim() : 'Guest';
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Profile" onBack={onBack} />
-      <div className="px-5 -mt-4">
-        <Placeholder />
+      <div className="px-5 -mt-4 space-y-4">
+        {loading ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">Loading profile...</p>
+          </Card>
+        ) : (
+          <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+                <User className="w-6 h-6 text-blue-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-white font-semibold text-base truncate">{fullName || 'Guest'}</p>
+                <p className="text-xs text-slate-400 truncate">{customer?.email || 'No email'}</p>
+                <p className="text-xs text-slate-400 truncate">{customer?.phone || 'No phone'}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-lg bg-[#0a0a1a] border border-slate-700/40 p-3">
+                <p className="text-slate-400">Orders</p>
+                <p className="text-white font-semibold text-sm">{customer?.order_count ?? 0}</p>
+              </div>
+              <div className="rounded-lg bg-[#0a0a1a] border border-slate-700/40 p-3">
+                <p className="text-slate-400">Loyalty Points</p>
+                <p className="text-white font-semibold text-sm">{customer?.loyalty_point ?? 0}</p>
+              </div>
+              <div className="rounded-lg bg-[#0a0a1a] border border-slate-700/40 p-3">
+                <p className="text-slate-400">Wallet Balance</p>
+                <p className="text-white font-semibold text-sm">${Number(customer?.wallet_balance ?? 0).toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg bg-[#0a0a1a] border border-slate-700/40 p-3">
+                <p className="text-slate-400">Member Since</p>
+                <p className="text-white font-semibold text-sm">{customer?.member_since || 'N/A'}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={() => onNavigate('update-profile')} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+                Edit Profile
+              </Button>
+              <Button
+                onClick={() => onNavigate('address-list')}
+                variant="outline"
+                className="flex-1 bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+              >
+                Addresses
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
 
-export function UpdateProfileScreen({ onBack }: ScreenProps) {
+export function UpdateProfileScreen({ onBack, onNavigate }: ScreenProps) {
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [firstName, setFirstName] = React.useState('');
+  const [lastName, setLastName] = React.useState('');
+  const [email, setEmail] = React.useState('');
+  const [image, setImage] = React.useState<File | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const info = await customerService.getCustomerInfo();
+        if (cancelled) return;
+        setFirstName(String(info?.f_name ?? ''));
+        setLastName(String(info?.l_name ?? ''));
+        setEmail(String(info?.email ?? ''));
+      } catch {
+        if (!cancelled) {
+          setFirstName('');
+          setLastName('');
+          setEmail('');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const save = async () => {
+    const f = firstName.trim();
+    const l = lastName.trim();
+    const e = email.trim();
+    if (!f || !l) {
+      toast.error("First and last name are required");
+      return;
+    }
+    if (!e) {
+      toast.error("Email is required");
+      return;
+    }
+    try {
+      setSaving(true);
+      await customerService.updateProfile({ f_name: f, l_name: l, email: e, image: image ?? undefined });
+      toast.success("Profile updated");
+      onNavigate('profile-view');
+    } catch {
+      toast.error("Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Update Profile" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-3">
-        <Input placeholder="Name" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Input placeholder="Email" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Button className="bg-blue-600">Save</Button>
+        {loading ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">Loading profile...</p>
+          </Card>
+        ) : (
+          <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+            <Input
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="First name"
+              className="bg-[#0a0a1a] border-slate-700/40 text-white"
+            />
+            <Input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Last name"
+              className="bg-[#0a0a1a] border-slate-700/40 text-white"
+            />
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              className="bg-[#0a0a1a] border-slate-700/40 text-white"
+            />
+
+            <div className="rounded-lg border border-slate-700/40 bg-[#0a0a1a] p-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+                className="w-full text-xs text-slate-300"
+              />
+              <div className="mt-2 text-xs text-slate-500">{image ? `Selected: ${image.name}` : 'Upload profile photo (optional).'}</div>
+            </div>
+
+            <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
 
-export function AddressScreen({ onBack }: ScreenProps) {
+export function AddressScreen({ onBack, onNavigate }: ScreenProps) {
+  const [addresses, setAddresses] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const refresh = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const list = await customerService.getAddressList();
+      setAddresses(Array.isArray(list) ? list : []);
+    } catch {
+      setAddresses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    refresh();
+  }, []);
+
+  const onAdd = () => {
+    try { localStorage.removeItem('editingAddressId'); } catch {}
+    onNavigate('add-address');
+  };
+
+  const onEdit = (id: number) => {
+    try { localStorage.setItem('editingAddressId', String(id)); } catch {}
+    onNavigate('add-address');
+  };
+
+  const onDelete = async (id: number) => {
+    const ok = window.confirm('Delete this address?');
+    if (!ok) return;
+    try {
+      await customerService.deleteAddress(id);
+      toast.success("Address deleted");
+      setAddresses((prev) => prev.filter((a: any) => Number(a?.id) !== id));
+    } catch {
+      toast.error("Failed to delete address");
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Addresses" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-3">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i} className="p-4 bg-[#1a1a2e] border-slate-700/40">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-white">Address #{i + 1}</span>
-              <Button variant="outline" size="sm" className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50">Edit</Button>
-            </div>
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-white font-semibold">Saved addresses</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refresh}
+              className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+          </div>
+        </Card>
+
+        {loading ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">Loading addresses...</p>
           </Card>
-        ))}
-        <Button className="bg-blue-600">Add New Address</Button>
+        ) : addresses.length === 0 ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">No addresses found.</p>
+          </Card>
+        ) : (
+          addresses.map((a: any) => (
+            <Card key={a?.id} className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-semibold capitalize">{String(a?.address_type ?? 'address')}</p>
+                  <p className="text-xs text-slate-300 break-words">{String(a?.address ?? '')}</p>
+                  <p className="text-xs text-slate-500">{String(a?.contact_person_name ?? '')} • {String(a?.contact_person_number ?? '')}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEdit(Number(a?.id))}
+                    className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onDelete(Number(a?.id))}
+                    className="bg-transparent border-red-500/40 text-red-300 hover:bg-red-500/10"
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))
+        )}
+
+        <Button onClick={onAdd} className="bg-blue-600 hover:bg-blue-700 text-white w-full">
+          Add New Address
+        </Button>
       </div>
     </div>
   );
 }
 
-export function AddAddressScreen({ onBack }: ScreenProps) {
+export function AddAddressScreen({ onBack, onNavigate }: ScreenProps) {
+  const [saving, setSaving] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<number | null>(() => {
+    const stored = localStorage.getItem('editingAddressId');
+    return stored && !Number.isNaN(Number(stored)) ? Number(stored) : null;
+  });
+
+  const [contactPersonName, setContactPersonName] = React.useState('');
+  const [contactPersonNumber, setContactPersonNumber] = React.useState('');
+  const [addressType, setAddressType] = React.useState('home');
+  const [address, setAddress] = React.useState('');
+  const [latitude, setLatitude] = React.useState('');
+  const [longitude, setLongitude] = React.useState('');
+  const [zoneId, setZoneId] = React.useState<number>(() => {
+    const raw = localStorage.getItem('zoneId');
+    if (!raw) return 1;
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return Number(parsed[0]) || 1;
+      return Number(parsed) || 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadExisting = async (id: number) => {
+      try {
+        setLoading(true);
+        const list = await customerService.getAddressList();
+        const found = (Array.isArray(list) ? list : []).find((a: any) => Number(a?.id) === id);
+        if (!found || cancelled) return;
+        setContactPersonName(String(found.contact_person_name ?? ''));
+        setContactPersonNumber(String(found.contact_person_number ?? ''));
+        setAddressType(String(found.address_type ?? 'home'));
+        setAddress(String(found.address ?? ''));
+        setLatitude(String(found.latitude ?? ''));
+        setLongitude(String(found.longitude ?? ''));
+        setZoneId(Number(found.zone_id ?? zoneId) || zoneId);
+      } catch {
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    if (editingId) loadExisting(editingId);
+    return () => {
+      cancelled = true;
+    };
+  }, [editingId]);
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation not available");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(String(pos.coords.latitude));
+        setLongitude(String(pos.coords.longitude));
+        toast.success("Location added");
+      },
+      () => {
+        toast.error("Failed to get location");
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  const save = async () => {
+    const name = contactPersonName.trim();
+    const phone = contactPersonNumber.trim();
+    const addr = address.trim();
+    if (!name || !phone || !addr) {
+      toast.error("Name, phone, and address are required");
+      return;
+    }
+    const payload = {
+      contact_person_name: name,
+      contact_person_number: phone,
+      address_type: addressType,
+      address: addr,
+      latitude: latitude.trim() || '0',
+      longitude: longitude.trim() || '0',
+      zone_id: Number(zoneId) || 1,
+    };
+
+    try {
+      setSaving(true);
+      if (editingId) {
+        await customerService.updateAddress(editingId, payload);
+        toast.success("Address updated");
+      } else {
+        await customerService.addAddress(payload);
+        toast.success("Address added");
+      }
+      try { localStorage.removeItem('editingAddressId'); } catch {}
+      onNavigate('address-list');
+    } catch {
+      toast.error(editingId ? "Failed to update address" : "Failed to add address");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
-      <ScreenHeader title="Add Address" onBack={onBack} />
+      <ScreenHeader title={editingId ? "Edit Address" : "Add Address"} onBack={onBack} />
       <div className="px-5 -mt-4 space-y-3">
-        <Input placeholder="Street" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Input placeholder="City" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Input placeholder="Zip Code" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Button className="bg-blue-600">Save Address</Button>
+        {loading ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">Loading address...</p>
+          </Card>
+        ) : (
+          <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+            <Input
+              value={contactPersonName}
+              onChange={(e) => setContactPersonName(e.target.value)}
+              placeholder="Contact person name"
+              className="bg-[#0a0a1a] border-slate-700/40 text-white"
+            />
+            <Input
+              value={contactPersonNumber}
+              onChange={(e) => setContactPersonNumber(e.target.value)}
+              placeholder="Contact person number"
+              className="bg-[#0a0a1a] border-slate-700/40 text-white"
+            />
+
+            <div className="space-y-2">
+              <div className="text-xs text-slate-400">Address type</div>
+              <select
+                value={addressType}
+                onChange={(e) => setAddressType(e.target.value)}
+                className="w-full rounded-md bg-[#0a0a1a] border border-slate-700/40 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              >
+                <option value="home">Home</option>
+                <option value="work">Work</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={3}
+              placeholder="Full address"
+              className="w-full rounded-md bg-[#0a0a1a] border border-slate-700/40 text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                placeholder="Latitude"
+                className="bg-[#0a0a1a] border-slate-700/40 text-white"
+              />
+              <Input
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                placeholder="Longitude"
+                className="bg-[#0a0a1a] border-slate-700/40 text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                value={String(zoneId)}
+                onChange={(e) => setZoneId(Number(e.target.value) || 1)}
+                placeholder="Zone ID"
+                className="bg-[#0a0a1a] border-slate-700/40 text-white"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={useCurrentLocation}
+                className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+              >
+                Use GPS
+              </Button>
+            </div>
+
+            <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Address'}
+            </Button>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function RewardsScreen({ onBack, onNavigate }: ScreenProps) {
+  const [loading, setLoading] = React.useState(true);
+  const [customer, setCustomer] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const info = await customerService.getCustomerInfo();
+        if (!cancelled) setCustomer(info);
+      } catch {
+        if (!cancelled) setCustomer(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
+      <ScreenHeader title="Rewards" onBack={onBack} />
+      <div className="px-5 -mt-4 space-y-4">
+        {loading ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">Loading rewards...</p>
+          </Card>
+        ) : (
+          <>
+            <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/30 to-yellow-500/10 border border-amber-500/30 flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-amber-300" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-base">Your loyalty points</p>
+                  <p className="text-xs text-slate-400">Earn points from purchases and bonuses</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-[#0a0a1a] border border-slate-700/40 p-4">
+                <p className="text-xs text-slate-400">Points</p>
+                <p className="text-2xl text-white font-bold">{customer?.loyalty_point ?? 0}</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={() => onNavigate('coupons')} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+                  View Offers
+                </Button>
+                <Button
+                  onClick={() => onNavigate('referrals')}
+                  variant="outline"
+                  className="flex-1 bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+                >
+                  Refer Friends
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-2">
+              <p className="text-sm text-white font-semibold">Wallet</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-300">Balance</span>
+                <span className="text-white font-semibold">${Number(customer?.wallet_balance ?? 0).toFixed(2)}</span>
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ReferralsScreen({ onBack }: ScreenProps) {
+  const [loading, setLoading] = React.useState(true);
+  const [refCode, setRefCode] = React.useState<string>('');
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const profile = await authService.getProfile();
+        if (cancelled) return;
+        setRefCode(String((profile as any)?.ref_code ?? '').trim());
+      } catch {
+        if (!cancelled) setRefCode('');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const copy = async () => {
+    if (!refCode) {
+      toast.error("No referral code available");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(refCode);
+      toast.success("Referral code copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  return (
+    <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
+      <ScreenHeader title="Referrals" onBack={onBack} />
+      <div className="px-5 -mt-4 space-y-4">
+        {loading ? (
+          <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
+            <p className="text-sm text-slate-300">Loading referral code...</p>
+          </Card>
+        ) : (
+          <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+            <p className="text-sm text-white font-semibold">Invite friends</p>
+            <p className="text-xs text-slate-400">Share your code. When friends sign up, you both can earn rewards.</p>
+
+            <div className="rounded-xl bg-[#0a0a1a] border border-slate-700/40 p-4 flex items-center justify-between">
+              <span className="text-white font-mono text-sm">{refCode || '—'}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={copy}
+                className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+                disabled={!refCode}
+              >
+                Copy
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -1,150 +1,136 @@
 // Order service for 6amMart user app integration
-import apiClient from './apiClient';
 import { Order, PaginatedOrder, OrderCancellationReason, RefundReason } from '../types/orderTypes';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 class OrderService {
-  private async ensureZoneAndModule(): Promise<void> {
-    const zoneId = localStorage.getItem('zoneId');
-    if (!zoneId) {
-      try {
-        const response = await apiClient.get<any>('/api/v1/zone/list');
-        const data = response.data;
-        const zones = Array.isArray(data) ? data : (data?.zones ?? data?.data ?? []);
-        const zoneIds = Array.isArray(zones)
-          ? zones.map((z: any) => Number(z?.id)).filter((id: number) => Number.isFinite(id))
-          : [];
-        const firstZoneId = zoneIds.length > 0 ? zoneIds[0] : null;
-        if (firstZoneId !== null) {
-          try { localStorage.setItem('zoneId', JSON.stringify([firstZoneId])); } catch {}
-        }
-      } catch {
-        try { localStorage.setItem('zoneId', JSON.stringify([1])); } catch {}
-      }
+  private generateGuestId(): string {
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `${Date.now()}${random}`;
+  }
+
+  private getOrCreateGuestId(): string {
+    let guestId = localStorage.getItem('guest_id');
+    if (!guestId) {
+      guestId = this.generateGuestId();
+      localStorage.setItem('guest_id', guestId);
+    }
+    return guestId;
+  }
+
+  private async getAuthOwner(): Promise<{ userId: string | null; guestId: string | null }> {
+    if (!isSupabaseConfigured || !supabase) return { userId: null, guestId: this.getOrCreateGuestId() };
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return { userId: null, guestId: this.getOrCreateGuestId() };
+    const userId = data.user?.id ?? null;
+    if (userId) return { userId, guestId: null };
+    return { userId: null, guestId: this.getOrCreateGuestId() };
+  }
+
+  private async getOrdersPage(params: { offset: number; limit: number; mode: 'running' | 'history' }): Promise<PaginatedOrder> {
+    const numericLimit = Math.max(1, Math.min(100, Number(params.limit) || 10));
+    const numericOffset = Math.max(1, Number(params.offset) || 1);
+    const from = (numericOffset - 1) * numericLimit;
+    const to = from + numericLimit - 1;
+
+    if (!isSupabaseConfigured || !supabase) {
+      return { total_size: 0, limit: numericLimit, offset: numericOffset, orders: [] };
     }
 
-    const moduleId = localStorage.getItem('moduleId');
-    if (!moduleId) {
-      try {
-        const response = await apiClient.get<any>('/api/v1/module');
-        const data = response.data;
-        const modules = Array.isArray(data) ? data : (data?.data ?? data?.modules ?? []);
-        const first = Array.isArray(modules) && modules.length > 0 ? modules[0] : null;
-        const resolvedId = first?.id ? String(first.id) : '1';
-        try { localStorage.setItem('moduleId', resolvedId); } catch {}
-      } catch {
-        try { localStorage.setItem('moduleId', '1'); } catch {}
-      }
-    }
+    const { userId, guestId } = await this.getAuthOwner();
+
+    let q = supabase.from('orders').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
+
+    const res = await q.range(from, to);
+    if (res.error) throw new Error(res.error.message);
+
+    const rows = Array.isArray(res.data) ? (res.data as any[]) : [];
+    const orders = params.mode === 'running'
+      ? rows.filter((r) => !['delivered', 'canceled', 'cancelled', 'refunded', 'failed'].includes(String(r?.order_status || '').toLowerCase()))
+      : rows;
+
+    return {
+      total_size: Number(res.count) || orders.length,
+      limit: numericLimit,
+      offset: numericOffset,
+      orders: orders as any,
+    };
   }
 
   // Get running orders
   async getRunningOrders(offset: number = 1, limit: number = 10): Promise<PaginatedOrder> {
-    try {
-      const response = await apiClient.get<PaginatedOrder>(
-        `/api/v1/customer/order/running-orders?offset=${offset}&limit=${limit}`
-      );
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    return this.getOrdersPage({ offset, limit, mode: 'running' });
   }
 
   // Get order history
   async getOrderHistory(offset: number = 1, limit: number = 10): Promise<PaginatedOrder> {
-    try {
-      const response = await apiClient.get<PaginatedOrder>(
-        `/api/v1/customer/order/list?offset=${offset}&limit=${limit}`
-      );
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    return this.getOrdersPage({ offset, limit, mode: 'history' });
   }
 
   // Get order details
   async getOrderDetails(orderId: string): Promise<Order[]> {
-    try {
-      const response = await apiClient.get<Order[]>(
-        `/api/v1/customer/order/details?order_id=${orderId}`
-      );
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) return [];
+    const { userId, guestId } = await this.getAuthOwner();
+    let q = supabase.from('orders').select('*').eq('id', orderId).limit(1);
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
+    const res = await q;
+    if (res.error) throw new Error(res.error.message);
+    const row = Array.isArray(res.data) && res.data.length > 0 ? res.data[0] : null;
+    return row ? ([row] as any) : [];
   }
 
   // Track order
   async trackOrder(orderId: string): Promise<Order[]> {
-    try {
-      const response = await apiClient.get<Order[]>(
-        `/api/v1/customer/order/track?order_id=${orderId}`
-      );
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    return this.getOrderDetails(orderId);
   }
 
   // Cancel order
   async cancelOrder(orderId: string, reason: string): Promise<boolean> {
-    try {
-      const response = await apiClient.post(
-        '/api/v1/customer/order/cancel',
-        {
-          _method: 'put',
-          order_id: orderId,
-          reason: reason
-        }
-      );
-      
-      return response.status === 200;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { userId, guestId } = await this.getAuthOwner();
+    let q = supabase.from('orders').update({ order_status: 'canceled', cancel_reason: reason, updated_at: new Date().toISOString() }).eq('id', orderId);
+    if (userId) q = q.eq('user_id', userId);
+    if (guestId) q = q.eq('guest_id', guestId);
+    const res = await q;
+    if (res.error) throw new Error(res.error.message);
+    return true;
   }
 
   // Get order cancellation reasons
   async getCancellationReasons(): Promise<OrderCancellationReason[]> {
-    try {
-      const response = await apiClient.get<{ reasons: OrderCancellationReason[] }>(
-        '/api/v1/customer/order/cancellation-reasons?offset=1&limit=30&type=customer'
-      );
-      return response.data.reasons;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) return [];
+    const res = await supabase.from('order_cancellation_reasons').select('*').order('id', { ascending: true });
+    if (res.error) return [];
+    return (res.data ?? []) as any;
   }
 
   // Get refund reasons
   async getRefundReasons(): Promise<RefundReason[]> {
-    try {
-      const response = await apiClient.get<{ refundReasons: RefundReason[] }>(
-        '/api/v1/customer/order/refund-reasons'
-      );
-      return response.data.refundReasons;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) return [];
+    const res = await supabase.from('refund_reasons').select('*').order('id', { ascending: true });
+    if (res.error) return [];
+    return (res.data ?? []) as any;
   }
 
   // Submit refund request
   async submitRefundRequest(orderId: string, reason: string, image?: File): Promise<boolean> {
-    try {
-      // For file uploads, we would need to use FormData
-      // This is a simplified version
-      const response = await apiClient.post(
-        '/api/v1/customer/order/refund-request',
-        {
-          order_id: orderId,
-          reason: reason,
-          image: image ? 'uploaded' : null
-        }
-      );
-      
-      return response.status === 200;
-    } catch (error) {
-      throw error;
-    }
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { userId, guestId } = await this.getAuthOwner();
+    const now = new Date().toISOString();
+    const payload: any = {
+      order_id: orderId,
+      reason,
+      image: image ? 'uploaded' : null,
+      created_at: now,
+      updated_at: now,
+      user_id: userId,
+      guest_id: guestId,
+    };
+    const res = await supabase.from('refund_requests').insert([payload]);
+    if (res.error) throw new Error(res.error.message);
+    return true;
   }
 
   // Place a new order
@@ -171,21 +157,84 @@ class OrderService {
     guest_id?: string;
   }): Promise<any> {
     try {
-      await this.ensureZoneAndModule();
-
-      // Ensure all required fields are present
       const completeOrderData = {
         ...orderData,
         contact_person_name: orderData.contact_person_name || '',
         contact_person_number: orderData.contact_person_number || '',
         contact_person_email: orderData.contact_person_email || '',
       };
-      
-      const response = await apiClient.post('/api/v1/customer/order/place', completeOrderData);
-      return response.data;
+
+      if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+      const { userId, guestId } = await this.getAuthOwner();
+      const now = new Date().toISOString();
+
+      let cartQ = supabase
+        .from('cart_items')
+        .select('item_id, quantity, price, discount, tax, variant, variation, add_ons, add_on_qtys, add_on_prices, item:items(name, image)')
+        .order('id', { ascending: true });
+      if (userId) cartQ = cartQ.eq('user_id', userId);
+      if (guestId) cartQ = cartQ.eq('guest_id', guestId);
+
+      const cartRes = await cartQ;
+      if (cartRes.error) throw new Error(cartRes.error.message);
+      const cartItems = Array.isArray(cartRes.data) ? cartRes.data : [];
+
+      const orderIns = await supabase
+        .from('orders')
+        .insert([
+          {
+            user_id: userId,
+            guest_id: guestId,
+            store_id: Number(completeOrderData.store_id),
+            order_amount: Number(completeOrderData.order_amount) || 0,
+            payment_method: completeOrderData.payment_method,
+            order_type: completeOrderData.order_type,
+            order_note: completeOrderData.order_note ?? '',
+            coupon_code: completeOrderData.coupon_code ?? '',
+            order_status: 'pending',
+            payment_status: completeOrderData.payment_method === 'cash_on_delivery' ? 'unpaid' : 'paid',
+            address: completeOrderData.address ?? '',
+            longitude: completeOrderData.longitude ?? null,
+            latitude: completeOrderData.latitude ?? null,
+            created_at: now,
+            updated_at: now,
+          },
+        ])
+        .select('*')
+        .maybeSingle();
+      if (orderIns.error) throw new Error(orderIns.error.message);
+
+      const orderRow: any = orderIns.data;
+      const orderId = orderRow?.id;
+
+      if (orderId && cartItems.length > 0) {
+        const itemRows = cartItems.map((c: any) => ({
+          order_id: orderId,
+          item_id: Number(c?.item_id),
+          quantity: Number(c?.quantity) || 1,
+          price: Number(c?.price) || 0,
+          tax_amount: Number(c?.tax) || 0,
+          discount_on_item: Number(c?.discount) || 0,
+          item_details: JSON.stringify(c?.item ?? {}),
+          created_at: now,
+          updated_at: now,
+        }));
+
+        const oi = await supabase.from('order_items').insert(itemRows);
+        if (oi.error) throw new Error(oi.error.message);
+
+        let delQ = supabase.from('cart_items').delete();
+        if (userId) delQ = delQ.eq('user_id', userId);
+        if (guestId) delQ = delQ.eq('guest_id', guestId);
+        const delRes = await delQ;
+        if (delRes.error) throw new Error(delRes.error.message);
+      }
+
+      return { order: orderRow, order_id: orderId };
     } catch (error) {
       throw error;
     }
-  }}
+  }
+}
 
 export default new OrderService();

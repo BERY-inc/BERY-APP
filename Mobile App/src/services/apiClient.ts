@@ -1,9 +1,18 @@
 import axios, { AxiosInstance } from 'axios';
 
-const MARKET_BASE_URL = 'https://market.bery.in/';
+const MARKET_BASE_URL = 'http://localhost:8000/';
 const envBaseUrl = ((import.meta as any).env?.VITE_API_BASE_URL ?? '').toString().trim();
 const resolvedBaseUrl = envBaseUrl || MARKET_BASE_URL;
 const normalizedBaseUrl = resolvedBaseUrl.endsWith('/') ? resolvedBaseUrl : `${resolvedBaseUrl}/`;
+
+const bootstrapClient: AxiosInstance = axios.create({
+  baseURL: normalizedBaseUrl,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: normalizedBaseUrl,
@@ -62,11 +71,71 @@ const normalizeModuleHeaderValue = (raw: string): string | undefined => {
   return trimmed;
 };
 
+let bootstrapPromise: Promise<void> | null = null;
+
+const ensureZoneAndModuleInStorage = async (): Promise<void> => {
+  const zoneId = localStorage.getItem('zoneId');
+  const moduleId = localStorage.getItem('moduleId');
+  if ((zoneId && zoneId.trim()) && (moduleId && moduleId.trim())) return;
+
+  if (bootstrapPromise) return bootstrapPromise;
+
+  bootstrapPromise = (async () => {
+    const storedZoneId = localStorage.getItem('zoneId');
+    if (!storedZoneId || !storedZoneId.trim()) {
+      try {
+        const response = await bootstrapClient.get<any>('/api/v1/zone/list');
+        const data = response.data;
+        const zones = Array.isArray(data) ? data : (data?.zones ?? data?.data ?? []);
+        const zoneIds = Array.isArray(zones)
+          ? zones.map((z: any) => Number(z?.id)).filter((id: number) => Number.isFinite(id))
+          : [];
+        const firstZoneId = zoneIds.length > 0 ? zoneIds[0] : 1;
+        try { localStorage.setItem('zoneId', JSON.stringify([firstZoneId])); } catch {}
+      } catch {
+        try { localStorage.setItem('zoneId', JSON.stringify([1])); } catch {}
+      }
+    }
+
+    const storedModuleId = localStorage.getItem('moduleId');
+    if (!storedModuleId || !storedModuleId.trim()) {
+      try {
+        const zoneHeaderRaw = localStorage.getItem('zoneId');
+        const zoneHeader = zoneHeaderRaw ? normalizeZoneHeaderValue(zoneHeaderRaw, 'multi') : undefined;
+        const response = await bootstrapClient.get<any>('/api/v1/module', {
+          headers: zoneHeader ? { zoneId: zoneHeader } : undefined,
+        });
+        const data = response.data;
+        const modules = Array.isArray(data) ? data : (data?.data ?? data?.modules ?? []);
+        const first = Array.isArray(modules) && modules.length > 0 ? modules[0] : null;
+        const resolvedId = first?.id ? String(first.id) : '1';
+        try { localStorage.setItem('moduleId', resolvedId); } catch {}
+      } catch {
+        try { localStorage.setItem('moduleId', '1'); } catch {}
+      }
+    }
+  })();
+
+  try {
+    await bootstrapPromise;
+  } finally {
+    bootstrapPromise = null;
+  }
+};
+
 // Request interceptor to add auth token and optional zone/module headers
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     if (isDev) {
       console.log('API Request:', config.method?.toUpperCase(), (config.baseURL || '') + (config.url || ''));
+    }
+
+    const url = String(config.url ?? '');
+    const isBootstrapEndpoint = url.includes('/api/v1/zone/list') || url.includes('/api/v1/module');
+    if (!isBootstrapEndpoint) {
+      try {
+        await ensureZoneAndModuleInStorage();
+      } catch {}
     }
 
     const token = localStorage.getItem('authToken');
@@ -78,7 +147,6 @@ apiClient.interceptors.request.use(
 
     const zoneId = localStorage.getItem('zoneId');
     if (zoneId) {
-      const url = String(config.url ?? '');
       const mode: ZoneHeaderMode = shouldUseSingleZoneHeader(url) ? 'single' : 'multi';
       const normalized = normalizeZoneHeaderValue(zoneId, mode);
       if (normalized) {
@@ -95,7 +163,6 @@ apiClient.interceptors.request.use(
     }
 
     if (isDev) {
-      const url = String(config.url ?? '');
       const headersPreview = {
         zoneId: (config.headers as any)?.zoneId,
         moduleId: (config.headers as any)?.moduleId,
