@@ -58,6 +58,8 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
   const [searchQuery, setSearchQuery] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string>("");
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [currentUserName, setCurrentUserName] = useState<string>("");
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -150,6 +152,16 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
 
   // WebSocket connection management
   useEffect(() => {
+    // Assign user ID based on localStorage counter for multi-tab testing
+    const userCounter = parseInt(localStorage.getItem('chatUserCounter') || '0') + 1;
+    localStorage.setItem('chatUserCounter', userCounter.toString());
+
+    const userId = `user-${userCounter}`;
+    const userName = contacts.find(c => c.id === userId)?.name || `User ${userCounter}`;
+
+    setCurrentUserId(userId);
+    setCurrentUserName(userName);
+
     connectWebSocket();
 
     return () => {
@@ -179,11 +191,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
           timestamp: new Date().toISOString(),
         });
 
-        // Register current user (simulate with a user ID for demo)
-        // In production, this would come from authentication
-        const currentUserId = "current-user"; // This should be the actual logged-in user ID
-        const currentUserName = "You"; // This should be the actual user name
-
+        // Register current user with unique ID
         sendWebSocketMessage({
           type: "register",
           userId: currentUserId,
@@ -450,7 +458,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
   };
 
   const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+    contact.id !== currentUserId && contact.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (!selectedContact) {
@@ -618,6 +626,12 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
                 <span className="text-xs text-red-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>Offline</span>
               </div>
             )}
+            {/* Current User ID Display */}
+            <div className="px-2.5 py-1 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <span className="text-xs text-blue-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+                {currentUserName} ({currentUserId})
+              </span>
+            </div>
           </div>
 
           <Button
