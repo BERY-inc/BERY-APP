@@ -161,7 +161,7 @@ export function TransactionHistory({ onBack, onNavigate, cartItemCount = 0, tran
                           {transaction.type === 'convert' ? transaction.amount.toFixed(0) : transaction.amount.toFixed(0)}
                         </p>
                         <p className="text-xs text-purple-300/60">
-                          {transaction.currency || transaction.to}
+                          {transaction.currency}
                         </p>
                       </div>
                     </div>

@@ -266,7 +266,7 @@ export function MyOrdersScreen({ onBack, onNavigate }: ScreenProps) {
 }
 
 
-export function OrderDetailsScreen({ onBack }: ScreenProps) {
+export function OrderDetailsScreen({ onBack, onNavigate }: ScreenProps) {
   const [order, setOrder] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [trackingInfo, setTrackingInfo] = React.useState<any>(null);
@@ -303,7 +303,7 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
         const orderData = await orderService.getOrderHistory();
         const orders = Array.isArray(orderData?.orders) ? orderData.orders : [];
 
-        let selectedOrder: any =
+        const selectedOrder: any =
           (storedOrderId ? orders.find((o: any) => String(o?.id) === String(storedOrderId)) : null) ??
           (orders.length > 0 ? orders[0] : null);
 
@@ -591,6 +591,32 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
                 </div>
               </div>
             </Card>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+                onClick={() => {
+                  try {
+                    localStorage.setItem("selectedOrderId", String(order?.id ?? ""));
+                  } catch {}
+                  onNavigate("order-tracking");
+                }}
+              >
+                Open Tracking
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  try {
+                    localStorage.setItem("selectedOrderId", String(order?.id ?? ""));
+                  } catch {}
+                  onNavigate("refund-request");
+                }}
+              >
+                Request Refund
+              </Button>
+            </div>
           </div>
         ) : (
           <Card className="p-4 bg-[#1a1a2e] border-slate-700/40">
@@ -603,25 +629,281 @@ export function OrderDetailsScreen({ onBack }: ScreenProps) {
 }
 
 export function OrderTrackingScreen({ onBack }: ScreenProps) {
+  const [orderId, setOrderId] = React.useState(() => localStorage.getItem('selectedOrderId') ?? '');
+  const [order, setOrder] = React.useState<any>(null);
+  const [trackingInfo, setTrackingInfo] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return String(dateString);
+    }
+  };
+
+  const buildTrackingInfo = (raw: any) => {
+    const status = String(raw?.order_status ?? raw?.status ?? 'confirmed');
+    const createdAt = raw?.created_at ?? '';
+    const updatedAt = raw?.updated_at ?? raw?.created_at ?? '';
+    const estimatedDelivery = raw?.updated_at ?? raw?.created_at ?? '';
+    const timeline = [
+      { status: 'Order Placed', time: createdAt, completed: Boolean(createdAt) || true },
+      { status: 'Order Confirmed', time: updatedAt, completed: ['confirmed', 'processing', 'preparing', 'picked_up', 'out_for_delivery', 'delivered'].includes(status) },
+      { status: 'Preparing', time: updatedAt, completed: ['preparing', 'picked_up', 'out_for_delivery', 'delivered'].includes(status) },
+      { status: 'Out for Delivery', time: updatedAt, completed: ['out_for_delivery', 'delivered'].includes(status) },
+      { status: 'Delivered', time: '', completed: status === 'delivered' },
+    ];
+    return { status, estimatedDelivery, timeline };
+  };
+
+  const fetchTracking = React.useCallback(async (id: string) => {
+    const trimmed = id.trim();
+    if (!trimmed) {
+      setOrder(null);
+      setTrackingInfo(null);
+      setError(null);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const trackRes = await orderService.trackOrder(trimmed);
+      const first = Array.isArray(trackRes) ? (trackRes[0] ?? null) : (trackRes as any);
+      if (!first) {
+        setOrder(null);
+        setTrackingInfo(null);
+        setError('Order not found.');
+        return;
+      }
+      setOrder(first);
+      setTrackingInfo(buildTrackingInfo(first));
+    } catch (e: any) {
+      setOrder(null);
+      setTrackingInfo(null);
+      setError('Failed to load tracking information.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const stored = localStorage.getItem('selectedOrderId') ?? '';
+    if (stored && stored !== orderId) setOrderId(stored);
+    fetchTracking(stored || orderId);
+  }, []);
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Order Tracking" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-4">
-        <Placeholder>
-          <p className="text-sm text-slate-300 mt-3">Tracking timeline placeholder</p>
-        </Placeholder>
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-white font-semibold">Track an order</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchTracking(orderId)}
+              className="bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+          </div>
+          <Input
+            value={orderId}
+            onChange={(e) => setOrderId(e.target.value)}
+            placeholder="Order ID"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+          <Button onClick={() => fetchTracking(orderId)} className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+            {loading ? 'Loading...' : 'Track'}
+          </Button>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </Card>
+
+        {trackingInfo && (
+          <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-semibold text-sm">Order #{order?.id ?? orderId.trim()}</h3>
+              <Badge className="bg-blue-500/20 text-blue-300 border-0 capitalize">
+                {String(trackingInfo.status).replace(/_/g, ' ')}
+              </Badge>
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-500/10 rounded-lg">
+              <p className="text-xs text-slate-400">Estimated Delivery</p>
+              <p className="text-sm text-white">{formatDate(trackingInfo.estimatedDelivery)}</p>
+            </div>
+
+            <div className="space-y-3">
+              {trackingInfo.timeline.map((step: any, index: number) => (
+                <div key={index} className="flex items-start">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 mt-0.5 ${
+                      step.completed ? 'bg-green-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    {step.completed ? <Check className="w-4 h-4 text-white" /> : <div className="w-2 h-2 rounded-full bg-slate-400" />}
+                  </div>
+                  <div className="flex-1 pb-3 border-l border-slate-700/50 pl-3 ml-2.5">
+                    <p className={`text-sm ${step.completed ? 'text-white' : 'text-slate-400'}`}>{step.status}</p>
+                    {step.time && <p className="text-xs text-slate-500">{formatDate(step.time)}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
 
-export function GuestTrackOrderScreen({ onBack }: ScreenProps) {
+export function GuestTrackOrderScreen({ onBack, onNavigate }: ScreenProps) {
+  const [orderId, setOrderId] = React.useState('');
+  const [order, setOrder] = React.useState<any>(null);
+  const [trackingInfo, setTrackingInfo] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return String(dateString);
+    }
+  };
+
+  const buildTrackingInfo = (raw: any) => {
+    const status = String(raw?.order_status ?? raw?.status ?? 'confirmed');
+    const createdAt = raw?.created_at ?? '';
+    const updatedAt = raw?.updated_at ?? raw?.created_at ?? '';
+    const estimatedDelivery = raw?.updated_at ?? raw?.created_at ?? '';
+    const timeline = [
+      { status: 'Order Placed', time: createdAt, completed: Boolean(createdAt) || true },
+      { status: 'Order Confirmed', time: updatedAt, completed: ['confirmed', 'processing', 'preparing', 'picked_up', 'out_for_delivery', 'delivered'].includes(status) },
+      { status: 'Preparing', time: updatedAt, completed: ['preparing', 'picked_up', 'out_for_delivery', 'delivered'].includes(status) },
+      { status: 'Out for Delivery', time: updatedAt, completed: ['out_for_delivery', 'delivered'].includes(status) },
+      { status: 'Delivered', time: '', completed: status === 'delivered' },
+    ];
+    return { status, estimatedDelivery, timeline };
+  };
+
+  const track = async () => {
+    const trimmed = orderId.trim();
+    if (!trimmed) {
+      toast.error("Enter an order ID");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      setOrder(null);
+      setTrackingInfo(null);
+      const trackRes = await orderService.trackOrder(trimmed);
+      const first = Array.isArray(trackRes) ? (trackRes[0] ?? null) : (trackRes as any);
+      if (!first) {
+        setError('Order not found.');
+        return;
+      }
+      setOrder(first);
+      setTrackingInfo(buildTrackingInfo(first));
+    } catch {
+      setError('Failed to load tracking information.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
       <ScreenHeader title="Guest Track Order" onBack={onBack} />
       <div className="px-5 -mt-4 space-y-4">
-        <Input placeholder="Enter order ID" className="bg-[#0a0a1a] border-slate-700/40 text-white" />
-        <Placeholder />
+        <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+          <Input
+            value={orderId}
+            onChange={(e) => setOrderId(e.target.value)}
+            placeholder="Enter order ID"
+            className="bg-[#0a0a1a] border-slate-700/40 text-white"
+          />
+          <Button onClick={track} className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+            {loading ? 'Loading...' : 'Track Order'}
+          </Button>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </Card>
+
+        {trackingInfo && (
+          <Card className="p-4 bg-[#1a1a2e] border border-slate-700/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-semibold text-sm">Order #{order?.id ?? orderId.trim()}</h3>
+              <Badge className="bg-blue-500/20 text-blue-300 border-0 capitalize">
+                {String(trackingInfo.status).replace(/_/g, ' ')}
+              </Badge>
+            </div>
+
+            <div className="p-3 bg-blue-500/10 rounded-lg">
+              <p className="text-xs text-slate-400">Estimated Delivery</p>
+              <p className="text-sm text-white">{formatDate(trackingInfo.estimatedDelivery)}</p>
+            </div>
+
+            <div className="space-y-3">
+              {trackingInfo.timeline.map((step: any, index: number) => (
+                <div key={index} className="flex items-start">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 mt-0.5 ${
+                      step.completed ? 'bg-green-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    {step.completed ? <Check className="w-4 h-4 text-white" /> : <div className="w-2 h-2 rounded-full bg-slate-400" />}
+                  </div>
+                  <div className="flex-1 pb-3 border-l border-slate-700/50 pl-3 ml-2.5">
+                    <p className={`text-sm ${step.completed ? 'text-white' : 'text-slate-400'}`}>{step.status}</p>
+                    {step.time && <p className="text-xs text-slate-500">{formatDate(step.time)}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 bg-transparent border-slate-600/40 text-white hover:bg-slate-800/50"
+                onClick={() => {
+                  localStorage.setItem('selectedOrderId', String(order?.id ?? orderId.trim()));
+                  onNavigate('order-details');
+                }}
+              >
+                View Details
+              </Button>
+              <Button
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  localStorage.setItem('selectedOrderId', String(order?.id ?? orderId.trim()));
+                  onNavigate('order-tracking');
+                }}
+              >
+                Open Tracking
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+              onClick={() => {
+                try {
+                  localStorage.setItem('selectedOrderId', String(order?.id ?? orderId.trim()));
+                } catch {}
+                onNavigate('refund-request');
+              }}
+            >
+              Request Refund
+            </Button>
+          </Card>
+        )}
       </div>
     </div>
   );

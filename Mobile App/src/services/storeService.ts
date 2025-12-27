@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 export interface Store {
   id: number;
@@ -56,60 +56,64 @@ export interface Store {
 const storeService = {
   // Include pagination params and robust parsing for different response shapes
   getStores: async (filter: string = 'all', options?: { limit?: number; offset?: number }): Promise<Store[]> => {
-    try {
-      const params: any = {
-        limit: options?.limit ?? 20,
-        offset: options?.offset ?? 0,
-      };
-      const response = await apiClient.get(`/api/v1/stores/get-stores/${filter}`, { params });
-      const data = response.data as any;
-      const stores: Store[] = Array.isArray(data) ? data : (data?.stores ?? []);
-      return stores;
-    } catch (error) {
-      // Fallback to latest stores
-      try {
-        const latestRes = await apiClient.get<{ stores: Store[] }>("/api/v1/stores/latest");
-        return latestRes.data?.stores ?? [];
-      } catch (fallbackErr) {
-        throw error;
-      }
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+
+    const numericLimit = Math.max(1, Math.min(100, Number(options?.limit) || 20));
+    const numericOffset = Math.max(0, Number(options?.offset) || 0);
+    const from = numericOffset;
+    const to = numericOffset + numericLimit - 1;
+
+    let q = supabase.from('stores').select('*');
+    if (filter && filter !== 'all') {
+      q = q.eq('filter', filter);
     }
+
+    const { data, error } = await q.order('created_at', { ascending: false }).range(from, to);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   },
 
   getLatestStores: async (options?: { limit?: number; offset?: number; moduleId?: number }): Promise<Store[]> => {
-    try {
-      const params: any = {
-        limit: options?.limit ?? 20,
-        offset: options?.offset ?? 0,
-        ...(options?.moduleId && { module_id: options.moduleId }),
-      };
-      const response = await apiClient.get<{ stores: Store[] }>("/api/v1/stores/latest", { params });
-      return response.data?.stores ?? [];
-    } catch (error) {
-      throw error;
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+
+    const numericLimit = Math.max(1, Math.min(100, Number(options?.limit) || 20));
+    const numericOffset = Math.max(0, Number(options?.offset) || 0);
+    const from = numericOffset;
+    const to = numericOffset + numericLimit - 1;
+
+    let q = supabase.from('stores').select('*');
+    if (options?.moduleId && Number.isFinite(Number(options.moduleId))) {
+      q = q.eq('module_id', Number(options.moduleId));
     }
+
+    const { data, error } = await q.order('created_at', { ascending: false }).range(from, to);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   },
 
   getPopularStores: async (type: string = 'all', options?: { moduleId?: number }): Promise<Store[]> => {
-    try {
-      const params: any = {
-        type,
-        ...(options?.moduleId && { module_id: options.moduleId }),
-      };
-      const response = await apiClient.get<{ stores: Store[] }>('\/api\/v1\/stores\/popular', { params });
-      return response.data?.stores ?? [];
-    } catch (error) {
-      throw error;
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    let q = supabase.from('stores').select('*');
+    if (options?.moduleId && Number.isFinite(Number(options.moduleId))) {
+      q = q.eq('module_id', Number(options.moduleId));
     }
+    if (type && type !== 'all') {
+      q = q.eq('type', type);
+    }
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(20);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as any;
   },
 
   getRecommendedStores: async (): Promise<Store[]> => {
-    try {
-      const response = await apiClient.get<{ stores: Store[] }>('\/api\/v1\/stores\/recommended');
-      return response.data?.stores ?? [];
-    } catch (error) {
-      throw error;
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const { data, error } = await supabase.from('stores').select('*').eq('recommended', true).order('created_at', { ascending: false }).limit(20);
+    if (error) {
+      const fallback = await supabase.from('stores').select('*').order('created_at', { ascending: false }).limit(20);
+      if (fallback.error) throw new Error(fallback.error.message);
+      return (fallback.data ?? []) as any;
     }
+    return (data ?? []) as any;
   }
 };
 

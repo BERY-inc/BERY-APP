@@ -70,7 +70,7 @@ export function DevDebugPanel({ currentScreen, onNavigate }: DevDebugPanelProps)
     ],
   };
 
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.PROD) {
     return null; // Hide in production
   }
 

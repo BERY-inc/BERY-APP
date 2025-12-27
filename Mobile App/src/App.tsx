@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy } from "react";
+import { useState, useEffect, Suspense, lazy, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 // Screens (lazy-loaded below)
 // Onboarding & main
@@ -33,6 +33,7 @@ const InvestmentConfirmation = lazy(() =>
   import("./components/InvestmentConfirmation").then((m) => ({ default: m.InvestmentConfirmation }))
 );
 import type { CartItem } from "./components/ShoppingCart";
+import type { Order as MarketOrder } from "./types/orderTypes";
 const ShoppingCart = lazy(() =>
   import("./components/ShoppingCart").then((m) => ({ default: m.ShoppingCart }))
 );
@@ -44,6 +45,8 @@ import { toast } from "sonner";
 import authService from "./services/authService";
 import orderService from "./services/orderService";
 import itemService from "./services/itemService";
+import customerService from "./services/customerService";
+import storeService from "./services/storeService";
 import { DevDebugPanel } from "./components/DevDebugPanel";
 import {
   StoreScreen,
@@ -66,6 +69,8 @@ import {
   UpdateProfileScreen,
   AddressScreen,
   AddAddressScreen,
+  RewardsScreen,
+  ReferralsScreen,
 } from "./components/MarketplaceScreens";
 import {
   OrderScreen,
@@ -233,14 +238,6 @@ interface ActiveInvestment {
   startDate: number;
 }
 
-interface Order {
-  id: string;
-  items: CartItem[];
-  totalUSD: number;
-  totalBery: number;
-  date: number;
-}
-
 const isDev = !!(import.meta as any).env?.DEV;
 
 export default function App() {
@@ -280,23 +277,37 @@ export default function App() {
         image: imageUrl
       });
 
+      const marketToken = localStorage.getItem('authToken');
+      if (!marketToken || !marketToken.trim()) {
+        setTransactions([]);
+        setCounterpartyInfo({});
+        return true;
+      }
+
       // Fetch transactions
       try {
-        const txResponse = await authService.getWalletTransactions();
-        const txList = Array.isArray(txResponse) ? txResponse : (txResponse?.data || []);
+        const txList = await authService.getWalletTransactions();
         setTransactions(txList);
 
-        const refs = Array.from(new Set(
-          txList
-            .filter((t: any) => (t.transaction_type === 'fund_transfer' || t.transaction_type === 'fund_transfer_received') && t.reference)
-            .map((t: any) => t.reference)
-        ));
+        const refs: string[] = Array.from(
+          new Set(
+            txList
+              .filter(
+                (t: any) =>
+                  (t.transaction_type === "fund_transfer" ||
+                    t.transaction_type === "fund_transfer_received") &&
+                  t.reference,
+              )
+              .map((t: any) => String(t.reference))
+              .filter((r: string) => r.trim().length > 0),
+          ),
+        );
 
         if (refs.length > 0) {
           const results = await Promise.all(
             refs.map(async (r) => {
               try {
-                const u = await authService.checkUser(r as string);
+                const u = await authService.checkUser(r);
                 return { r, u };
               } catch {
                 return { r, u: null };
@@ -319,24 +330,23 @@ export default function App() {
       return true;
     } catch (error) {
       if (isDev) console.error("Session restore failed:", error);
-      // Token might be invalid
-      localStorage.removeItem('authToken');
+      void authService.logout();
       return false;
     }
   };
 
   useEffect(() => {
-    if (authService.isAuthenticated()) {
+    authService.hasSession().then((hasSession) => {
+      if (!hasSession) return;
       refreshDashboardData().then((success) => {
-        // Redirect to dashboard if on splash/login and auth successful
         if (success && (currentScreen === 'splash' || currentScreen === 'login')) {
           setCurrentScreen('dashboard');
         }
       });
-    }
-  }, []); // Run once on mount
+    });
+  }, [currentScreen]); // Run when currentScreen changes (to redirect from splash/login if session exists)
 
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<MarketOrder[]>([]);
 
   // Shopping Cart State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -405,12 +415,19 @@ export default function App() {
 
       setUserData({ email, phone, firstName: name.split(" ")[0], lastName: name.split(" ")[1] || "" });
 
+      const hasSession = await authService.hasSession();
+      if (hasSession) {
+        toast.success("Account created successfully!", {
+          description: "Welcome to Bery Market!",
+        });
+        setCurrentScreen("dashboard");
+        return;
+      }
+
       toast.success("Account created successfully!", {
-        description: "Welcome to Bery Market!",
+        description: "Check your email to confirm your account, then sign in.",
       });
-      // Backend returns a token, so we can consider them logged in.
-      // Skipping OTP verification as per user request to go straight to home.
-      setCurrentScreen("dashboard");
+      setCurrentScreen("login");
     } catch (error: any) {
       if (isDev) console.error("Registration failed:", error);
       // Re-throw to be handled by the form
@@ -630,6 +647,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    void authService.logout();
     // Reset all state
     setUserData({ email: "", phone: "" });
     setActiveInvestments([]);
@@ -752,6 +770,60 @@ export default function App() {
     setCurrentScreen("product-detail");
   };
 
+  const storeContextCacheRef = useRef<Map<number, { zoneId?: number; moduleId?: number }>>(new Map());
+  const ensureStoreContextForStoreId = async (storeId: number) => {
+    if (!Number.isFinite(storeId) || storeId <= 0) return;
+
+    const cached = storeContextCacheRef.current.get(storeId);
+    if (cached?.zoneId !== undefined) {
+      try {
+        localStorage.setItem('zoneId', JSON.stringify([cached.zoneId]));
+      } catch {}
+    }
+    if (cached?.moduleId !== undefined) {
+      try {
+        localStorage.setItem('moduleId', String(cached.moduleId));
+      } catch {}
+    }
+    if (cached) return;
+
+    try {
+      localStorage.setItem('storeId', String(storeId));
+    } catch {}
+
+    const toFiniteNumber = (value: unknown): number | undefined => {
+      const n = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    let store: any | undefined;
+    try {
+      const stores = await storeService.getStores('all', { limit: 100, offset: 0 });
+      store = (Array.isArray(stores) ? stores : []).find((s) => Number(s?.id) === storeId);
+    } catch {}
+    if (!store) {
+      try {
+        const stores = await storeService.getLatestStores({ limit: 100, offset: 0 });
+        store = (Array.isArray(stores) ? stores : []).find((s) => Number(s?.id) === storeId);
+      } catch {}
+    }
+
+    const zone = toFiniteNumber(store?.zone_id);
+    const module = toFiniteNumber(store?.module_id);
+    storeContextCacheRef.current.set(storeId, { zoneId: zone, moduleId: module });
+
+    if (zone !== undefined) {
+      try {
+        localStorage.setItem('zoneId', JSON.stringify([zone]));
+      } catch {}
+    }
+    if (module !== undefined) {
+      try {
+        localStorage.setItem('moduleId', String(module));
+      } catch {}
+    }
+  };
+
   const handleAddToCart = async (product: any, quantity: number) => {
     // Determine price: use actual_price if available, otherwise try to parse the string price
     let price = product.actual_price;
@@ -771,11 +843,22 @@ export default function App() {
         localStorage.setItem('moduleId', product.module_id.toString());
       } catch {}
     }
+    const productStoreId = (() => {
+      const raw = product?.store_id ?? product?.item?.store_id;
+      const parsed = typeof raw === 'number' ? raw : Number(raw);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    })();
+    if (productStoreId !== undefined) {
+      await ensureStoreContextForStoreId(productStoreId);
+    }
 
     const productId = Number(product.id);
     const addQty = Number(quantity) || 1;
 
     const syncFromBackend = async () => {
+      if (productStoreId !== undefined) {
+        await ensureStoreContextForStoreId(productStoreId);
+      }
       const backendCart = await itemService.getCartItems();
       const mapped: CartItem[] = (Array.isArray(backendCart) ? backendCart : []).map((ci) => ({
         id: Number(ci.id),
@@ -978,9 +1061,10 @@ export default function App() {
     handleNavigate("checkout");
   };
 
-  const handleConfirmPurchase = async (paymentMethod: "bery", amount: number) => {
+  const handleConfirmPurchase = async (paymentMethod: "bery" | "usd", amount: number) => {
     const previousWalletBalance = walletBalance;
-    setWalletBalance(previousWalletBalance - amount);
+    const amountInBery = paymentMethod === "usd" ? amount * 8.9 : amount;
+    setWalletBalance(previousWalletBalance - amountInBery);
 
     const txId = `TX${Date.now().toString(36).toUpperCase()}`;
     setTransactionId(txId);
@@ -1023,10 +1107,41 @@ export default function App() {
       }
       
       const storedStoreIdRaw = localStorage.getItem('storeId');
-      const fromCart = realCartItems.length > 0 ? Number(realCartItems[0]?.item?.store_id) : NaN;
+      const storeIdsFromCart = Array.from(
+        new Set(
+          (Array.isArray(realCartItems) ? realCartItems : [])
+            .map((ci: any) => Number(ci?.item?.store_id))
+            .filter((id: number) => Number.isFinite(id))
+        )
+      );
+      if (storeIdsFromCart.length > 1) {
+        toast.error("Items from multiple stores", {
+          description: "Please checkout items from one store at a time.",
+        });
+        throw new Error("Multiple store items in cart");
+      }
+      const fromCart = storeIdsFromCart.length === 1 ? storeIdsFromCart[0] : NaN;
       const fromStorage = storedStoreIdRaw ? Number(storedStoreIdRaw) : NaN;
-      const storeId = Number.isFinite(fromCart) ? fromCart : (Number.isFinite(fromStorage) ? fromStorage : 1);
+      const storeId = Number.isFinite(fromCart) ? fromCart : (Number.isFinite(fromStorage) ? fromStorage : NaN);
+      if (!Number.isFinite(storeId)) {
+        toast.error("Missing store for this cart");
+        throw new Error("Missing store id");
+      }
+      try {
+        localStorage.setItem('storeId', String(storeId));
+      } catch {}
       if (isDev) console.log("Store ID:", storeId);
+
+      const moduleIdFromCart = (() => {
+        const raw = realCartItems.length > 0 ? (realCartItems[0] as any)?.item?.module_id : undefined;
+        const parsed = typeof raw === 'number' ? raw : Number(raw);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      })();
+      if (moduleIdFromCart !== undefined) {
+        try {
+          localStorage.setItem('moduleId', String(moduleIdFromCart));
+        } catch {}
+      }
       
       const userProfile = await authService.getProfile();
       if (isDev) console.log("User profile:", userProfile);
@@ -1037,23 +1152,178 @@ export default function App() {
         (storedAddress && storedAddress.trim()) ||
         ((userProfile as any)?.address && String((userProfile as any).address).trim()) ||
         "123 Main St";
-      const longitude = -73.9857;
-      const latitude = 40.7484;
       const token = localStorage.getItem('authToken');
       const guestId = !token ? localStorage.getItem('guest_id') : null;
+      if (!token) {
+        try {
+          const warned = localStorage.getItem('guest_checkout_warned');
+          if (!warned) {
+            localStorage.setItem('guest_checkout_warned', 'true');
+            toast.info("Guest checkout", {
+              description: "Login to see these orders in your market.bery.in account dashboard.",
+            });
+          }
+        } catch {}
+      }
+
+      const toFiniteNumber = (value: unknown): number | undefined => {
+        const n = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(n) ? n : undefined;
+      };
+
+      let resolvedAddress = address;
+      let resolvedLatitude: number | undefined;
+      let resolvedLongitude: number | undefined;
+      let resolvedContactName: string | undefined;
+      let resolvedContactNumber: string | undefined;
+
+      let cachedStore: any | undefined;
+      const resolveStore = async (): Promise<any | undefined> => {
+        if (cachedStore) return cachedStore;
+        try {
+          const stores = await storeService.getStores('all', { limit: 100, offset: 0 });
+          const matched = (Array.isArray(stores) ? stores : []).find((s) => Number(s?.id) === storeId);
+          if (matched) {
+            cachedStore = matched;
+            return matched;
+          }
+        } catch {}
+
+        try {
+          const stores = await storeService.getLatestStores({ limit: 100, offset: 0 });
+          const matched = (Array.isArray(stores) ? stores : []).find((s) => Number(s?.id) === storeId);
+          if (matched) {
+            cachedStore = matched;
+            return matched;
+          }
+        } catch {}
+
+        return undefined;
+      };
+
+      const resolveStoreCoords = async (): Promise<{ lat: number; lng: number } | undefined> => {
+        const store = await resolveStore();
+        const lat = toFiniteNumber(store?.latitude);
+        const lng = toFiniteNumber(store?.longitude);
+        if (lat !== undefined && lng !== undefined) return { lat, lng };
+        return undefined;
+      };
+
+      const ensureStoreContext = async () => {
+        const store = await resolveStore();
+        const zone = toFiniteNumber(store?.zone_id);
+        const module = toFiniteNumber(store?.module_id);
+        if (zone !== undefined) {
+          try {
+            localStorage.setItem('zoneId', JSON.stringify([zone]));
+          } catch {}
+        }
+        if (module !== undefined) {
+          try {
+            localStorage.setItem('moduleId', String(module));
+          } catch {}
+        }
+      };
+
+      const geocodeAddress = async (rawAddress: string): Promise<{ lat: number; lng: number } | undefined> => {
+        const key = ((import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY ?? "").toString().trim();
+        const addr = (rawAddress ?? "").toString().trim();
+        if (!key || !addr) return undefined;
+        try {
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=${encodeURIComponent(key)}`;
+          const res = await fetch(url);
+          if (!res.ok) return undefined;
+          const data = (await res.json()) as any;
+          const loc = data?.results?.[0]?.geometry?.location;
+          const lat = toFiniteNumber(loc?.lat);
+          const lng = toFiniteNumber(loc?.lng);
+          if (lat === undefined || lng === undefined) return undefined;
+          return { lat, lng };
+        } catch {
+          return undefined;
+        }
+      };
+
+      try {
+        const addresses = await customerService.getAddressList();
+        const normalizedStored = (storedAddress ?? '').trim().toLowerCase();
+        const matched =
+          (normalizedStored
+            ? addresses.find((a) => String(a.address ?? '').trim().toLowerCase() === normalizedStored)
+            : undefined) ??
+          addresses.find((a) => String(a.address ?? '').trim().toLowerCase() === String(resolvedAddress ?? '').trim().toLowerCase()) ??
+          addresses[0];
+
+        if (matched) {
+          const lat = toFiniteNumber(matched.latitude);
+          const lng = toFiniteNumber(matched.longitude);
+          if (lat !== undefined) resolvedLatitude = lat;
+          if (lng !== undefined) resolvedLongitude = lng;
+          if (matched.address && String(matched.address).trim()) {
+            resolvedAddress = String(matched.address).trim();
+          }
+          if (matched.contact_person_name && String(matched.contact_person_name).trim()) {
+            resolvedContactName = String(matched.contact_person_name).trim();
+          }
+          if (matched.contact_person_number && String(matched.contact_person_number).trim()) {
+            resolvedContactNumber = String(matched.contact_person_number).trim();
+          }
+        }
+      } catch {}
+
+      if (resolvedLatitude === undefined || resolvedLongitude === undefined) {
+        const geocoded = await geocodeAddress(resolvedAddress);
+        if (geocoded) {
+          resolvedLatitude = geocoded.lat;
+          resolvedLongitude = geocoded.lng;
+        }
+      }
+
+      if (resolvedLatitude === undefined || resolvedLongitude === undefined) {
+        const storeCoords = await resolveStoreCoords();
+        if (storeCoords) {
+          resolvedLatitude = storeCoords.lat;
+          resolvedLongitude = storeCoords.lng;
+        } else {
+          resolvedLatitude = 0;
+          resolvedLongitude = 0;
+        }
+      }
+
+      const distanceKm = await (async (): Promise<number | undefined> => {
+        const haversineKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+          const toRad = (deg: number) => (deg * Math.PI) / 180;
+          const R = 6371;
+          const dLat = toRad(b.lat - a.lat);
+          const dLng = toRad(b.lng - a.lng);
+          const lat1 = toRad(a.lat);
+          const lat2 = toRad(b.lat);
+          const sinDLat = Math.sin(dLat / 2);
+          const sinDLng = Math.sin(dLng / 2);
+          const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+          return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+        };
+
+        const storeCoords = await resolveStoreCoords();
+        if (!storeCoords) return undefined;
+        const userCoords = { lat: resolvedLatitude, lng: resolvedLongitude };
+        return haversineKm(storeCoords, userCoords);
+      })();
+
+      await ensureStoreContext();
       
       const orderData = {
-        payment_method: "wallet",
-        order_type: "delivery",
+        payment_method: "wallet" as const,
+        order_type: "delivery" as const,
         store_id: storeId,
-        distance: 5.5, // Placeholder - would be calculated
-        address: address,
-        longitude: longitude,
-        latitude: latitude,
+        distance: Number.isFinite(distanceKm as number) && (distanceKm as number) > 0 ? (distanceKm as number) : 1,
+        ...(resolvedAddress ? { address: resolvedAddress } : {}),
+        longitude: resolvedLongitude,
+        latitude: resolvedLatitude,
         order_amount: cartTotal,
         cutlery: false,
-        contact_person_name: (userProfile.f_name || '') + ' ' + (userProfile.l_name || ''),
-        contact_person_number: (storedPhone && storedPhone.trim()) || userProfile.phone || '',
+        contact_person_name: (resolvedContactName || ((userProfile.f_name || '') + ' ' + (userProfile.l_name || ''))).trim(),
+        contact_person_number: (storedPhone && storedPhone.trim()) || resolvedContactNumber || userProfile.phone || '',
         contact_person_email: userProfile.email || '',
         ...(guestId ? { guest_id: guestId } : {})
       };
@@ -1061,11 +1331,27 @@ export default function App() {
       if (isDev) console.log("Order data being sent:", orderData);
       const orderResponse = await orderService.placeOrder(orderData);
       if (isDev) console.log("Order placed response:", orderResponse);
+      const createdOrderId =
+        (orderResponse as any)?.order_id ??
+        (orderResponse as any)?.order?.id ??
+        (orderResponse as any)?.id;
+      if (createdOrderId !== undefined && createdOrderId !== null) {
+        try {
+          localStorage.setItem('lastPlacedOrderId', String(createdOrderId));
+        } catch {}
+        try {
+          const details = await orderService.getOrderDetails(String(createdOrderId));
+          try {
+            localStorage.setItem('lastPlacedOrderDetails', JSON.stringify(details));
+          } catch {}
+          if (isDev) console.log("Last placed order details:", details);
+        } catch {}
+      }
       
       await refreshOrders();
       
       toast.success("Order confirmed!", {
-        description: "Your payment has been processed successfully.",
+        description: createdOrderId ? `Order #${createdOrderId} created successfully.` : "Your payment has been processed successfully.",
       });
       orderPlaced = true;
     } catch (error: any) {
@@ -1080,6 +1366,8 @@ export default function App() {
         description: "There was an issue placing your order. Please try again.",
       });
       setWalletBalance(previousWalletBalance);
+      setErrorType("transaction");
+      handleNavigate("error");
       return;
     }
 
@@ -1110,6 +1398,10 @@ export default function App() {
   };
 
   const handleRetryFromError = () => {
+    if (navigationHistory.length > 1) {
+      handleGoBack();
+      return;
+    }
     setCurrentScreen("dashboard");
   };
 
@@ -1118,7 +1410,7 @@ export default function App() {
     try {
       const orderResponse = await orderService.getOrderHistory();
       // Update the local orders state with fresh data from backend
-      setOrders(orderResponse.orders || []);
+      setOrders(orderResponse?.orders ?? []);
     } catch (error) {
       if (isDev) console.error('Error refreshing orders:', error);
     }
@@ -1497,6 +1789,30 @@ export default function App() {
         )}
 
         {/* Pauket Coupon Screens */}
+        {currentScreen === "offers" && (
+          <Suspense fallback={<GenericScreenSkeleton />}>
+            <Coupons
+              onBack={handleBackToDashboard}
+              onNavigate={handleNavigate}
+              userId={userData.email || userData.phone}
+              userName={
+                userData.firstName || userData.lastName
+                  ? `${userData.firstName || ""} ${userData.lastName || ""}`.trim()
+                  : userData.email.split('@')[0] || userData.phone || "Guest"
+              }
+              userImage={userData.image}
+            />
+          </Suspense>
+        )}
+
+        {currentScreen === "rewards" && (
+          <RewardsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
+        )}
+
+        {currentScreen === "referrals" && (
+          <ReferralsScreen onBack={handleBackToDashboard} onNavigate={handleNavigate} />
+        )}
+
         {currentScreen === "coupons" && (
           <Suspense fallback={<GenericScreenSkeleton />}>
             <Coupons
@@ -1549,12 +1865,6 @@ export default function App() {
               onBack={handleBackToDashboard}
               onNavigate={handleNavigate}
               userId={userData.email || userData.phone}
-              userName={
-                userData.firstName || userData.lastName
-                  ? `${userData.firstName || ""} ${userData.lastName || ""}`.trim()
-                  : userData.email.split('@')[0] || userData.phone || "Guest"
-              }
-              userImage={userData.image}
             />
           </Suspense>
         )}

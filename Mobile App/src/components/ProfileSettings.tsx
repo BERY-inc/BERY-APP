@@ -51,16 +51,41 @@ interface ProfileSettingsProps {
 export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 0, userData, onUserDataChange }: ProfileSettingsProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [notifications, setNotifications] = useState(() => {
+  type NotificationPreferences = {
+    transactions: boolean;
+    marketing: boolean;
+    security: boolean;
+  };
+
+  const defaultNotifications: NotificationPreferences = {
+    transactions: true,
+    marketing: false,
+    security: true,
+  };
+
+  const coerceBoolean = (value: unknown, fallback: boolean) => {
+    if (typeof value === "boolean") return value;
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return fallback;
+  };
+
+  const [notifications, setNotifications] = useState<NotificationPreferences>(() => {
     try {
       const raw = localStorage.getItem("profile_notifications");
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return {
-      transactions: true,
-      marketing: false,
-      security: true,
-    };
+      if (!raw) return defaultNotifications;
+
+      const parsed = JSON.parse(raw) as Partial<NotificationPreferences> | null;
+      if (!parsed || typeof parsed !== "object") return defaultNotifications;
+
+      return {
+        transactions: coerceBoolean(parsed.transactions, defaultNotifications.transactions),
+        marketing: coerceBoolean(parsed.marketing, defaultNotifications.marketing),
+        security: coerceBoolean(parsed.security, defaultNotifications.security),
+      };
+    } catch {
+      return defaultNotifications;
+    }
   });
   const [darkMode, setDarkMode] = useState(() => {
     try {
@@ -493,7 +518,7 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
                 </div>
                 <Switch
                   checked={notifications.transactions}
-                  onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, transactions: checked }))}
+                  onCheckedChange={(checked: boolean) => setNotifications(prev => ({ ...prev, transactions: checked }))}
                 />
               </div>
 

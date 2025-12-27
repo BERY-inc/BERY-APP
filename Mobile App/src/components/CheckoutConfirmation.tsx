@@ -23,7 +23,7 @@ interface CheckoutConfirmationProps {
   totalBery: number;
   totalUSD: number;
   onBack: () => void;
-  onConfirmPurchase: (paymentMethod: "bery", amount: number) => void;
+  onConfirmPurchase: (paymentMethod: "bery", amount: number) => void | Promise<void>;
   walletBalance?: number;
 }
 
@@ -47,7 +47,7 @@ export function CheckoutConfirmation({
 
   const hasSufficientBalance = walletBalance >= totalBery;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!hasSufficientBalance) {
       toast.error("Insufficient Balance", {
         description: `You need ₿${totalBery.toFixed(1)} but only have ₿${walletBalance.toFixed(1)}`,
@@ -58,12 +58,12 @@ export function CheckoutConfirmation({
 
     try { Haptics.notification({ type: NotificationType.Success }); } catch {}
     setIsProcessing(true);
-    // Simulate payment processing
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      await Promise.resolve(onConfirmPurchase("bery", totalBery));
       try { Haptics.notification({ type: NotificationType.Success }); } catch {}
-      onConfirmPurchase("bery", totalBery);
-    }, 2000);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
