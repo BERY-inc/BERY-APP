@@ -344,7 +344,7 @@ export default function App() {
         }
       });
     });
-  }, []); // Run once on mount
+  }, [currentScreen]); // Run when currentScreen changes (to redirect from splash/login if session exists)
 
   const [orders, setOrders] = useState<MarketOrder[]>([]);
 
