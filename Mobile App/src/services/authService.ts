@@ -190,7 +190,7 @@ class AuthService {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, phone, first_name, last_name, avatar_url')
+      .select('user_id, email, phone, first_name, last_name, avatar_url')
       .or(`email.ilike.${query},phone.eq.${query}`)
       .limit(1);
 
@@ -199,7 +199,7 @@ class AuthService {
     if (!u) return null;
 
     return {
-      id: toNumericId(String(u.id)),
+      id: toNumericId(String(u.user_id)),
       f_name: u.first_name || '',
       l_name: u.last_name || '',
       email: u.email || '',
@@ -266,14 +266,14 @@ class AuthService {
 
     const { data: senderProfile, error: senderError } = await supabase
       .from('profiles')
-      .select('id, wallet_balance')
-      .eq('id', user.id)
+      .select('user_id, wallet_balance')
+      .eq('user_id', user.id)
       .single();
     if (senderError) throw new Error(senderError.message);
 
     const { data: receiverProfile, error: receiverError } = await supabase
       .from('profiles')
-      .select('id, wallet_balance')
+      .select('user_id, wallet_balance')
       .or(`email.ilike.${emailOrPhone.trim()},phone.eq.${emailOrPhone.trim()}`)
       .single();
     if (receiverError) throw new Error(receiverError.message);

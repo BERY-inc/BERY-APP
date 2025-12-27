@@ -113,7 +113,7 @@ class CustomerService {
       updated_at: now,
     };
 
-    const upd = await supabase.from('profiles').update(profileUpdate).eq('id', user.id);
+    const upd = await supabase.from('profiles').update(profileUpdate).eq('user_id', user.id);
     if (upd.error) throw new Error(upd.error.message);
 
     if (email && email !== user.email) {
