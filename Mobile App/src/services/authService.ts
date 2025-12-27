@@ -266,14 +266,14 @@ class AuthService {
 
     const { data: senderProfile, error: senderError } = await supabase
       .from('profiles')
-      .select('user_id, wallet_balance')
+      .select('id, user_id, wallet_balance')
       .eq('user_id', user.id)
       .single();
     if (senderError) throw new Error(senderError.message);
 
     const { data: receiverProfile, error: receiverError } = await supabase
       .from('profiles')
-      .select('user_id, wallet_balance')
+      .select('id, user_id, wallet_balance')
       .or(`email.ilike.${emailOrPhone.trim()},phone.eq.${emailOrPhone.trim()}`)
       .single();
     if (receiverError) throw new Error(receiverError.message);

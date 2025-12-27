@@ -185,7 +185,8 @@ class CustomerService {
         updated_at: now,
       })
       .eq('id', Number(id))
-      .eq('user_id', user.id);
+      .eq('user_id', user.id); // Ensure user owns the address
+    
     if (upd.error) throw new Error(upd.error.message);
     return { updated: true };
   }
@@ -198,7 +199,12 @@ class CustomerService {
     const user = userData.user;
     if (!user) throw new Error('Not authenticated');
 
-    const del = await supabase.from('addresses').delete().eq('id', Number(id)).eq('user_id', user.id);
+    const del = await supabase
+      .from('addresses')
+      .delete()
+      .eq('id', Number(id))
+      .eq('user_id', user.id); // Ensure user owns the address
+    
     if (del.error) throw new Error(del.error.message);
     return { deleted: true };
   }
