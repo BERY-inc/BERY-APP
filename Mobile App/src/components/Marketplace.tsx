@@ -287,7 +287,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
     const imgStr = String(image);
     if (imgStr.startsWith('http') || imgStr.startsWith('//')) return imgStr;
     const cleanPath = imgStr.startsWith('/') ? imgStr.slice(1) : imgStr;
-    return `https://market.bery.in/storage/app/public/product/${cleanPath}`;
+    return getStorageUrl(cleanPath, 'product');
   };
 
   // NEW: Refetch products when store or category changes (with module ready)
@@ -682,7 +682,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
                         <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg overflow-hidden">
                           {store.image.startsWith('/') ? (
                             <img
-                              src={`https://market.bery.in/storage/app/public/store${store.image}`}
+                              src={getStorageUrl(store.image, 'store')}
                               alt={store.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {

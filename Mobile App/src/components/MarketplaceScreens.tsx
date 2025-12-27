@@ -1127,7 +1127,7 @@ export function ItemDetailsScreen({ onBack, onNavigate, product: initialProduct,
     const imgStr = String(image);
     if (imgStr.startsWith('http') || imgStr.startsWith('//')) return imgStr;
     const cleanPath = imgStr.startsWith('/') ? imgStr.slice(1) : imgStr;
-    return `https://market.bery.in/storage/app/public/product/${cleanPath}`;
+    return getStorageUrl(cleanPath, 'product');
   };
 
   const images = Array.isArray(product?.images) && product.images.length > 0 ? product.images : [product?.image_full_url || product?.image].filter(Boolean);

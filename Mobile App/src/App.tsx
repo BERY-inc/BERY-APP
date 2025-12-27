@@ -461,7 +461,7 @@ export default function App() {
 
         let imageUrl = profile.image;
         if (imageUrl && !imageUrl.startsWith('http')) {
-          imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+          imageUrl = getStorageUrl(imageUrl, 'profile');
         }
 
         setUserData({
@@ -516,7 +516,7 @@ export default function App() {
 
         let imageUrl = profile.image;
         if (imageUrl && !imageUrl.startsWith('http')) {
-          imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+          imageUrl = getStorageUrl(imageUrl, 'profile');
         }
 
         setUserData({

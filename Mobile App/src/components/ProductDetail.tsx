@@ -7,6 +7,7 @@ import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { toast } from "sonner";
 import { Haptics, NotificationType } from "@capacitor/haptics";
+import { getStorageUrl } from '../services/supabaseClient';
 
 interface ProductData {
   id: number;
@@ -43,7 +44,7 @@ export function ProductDetail({ product, onBack, isService = false, onAddToCart,
     const imgStr = String(image);
     if (imgStr.startsWith('http') || imgStr.startsWith('//')) return imgStr;
     const cleanPath = imgStr.startsWith('/') ? imgStr.slice(1) : imgStr;
-    return `https://market.bery.in/storage/app/public/product/${cleanPath}`;
+    return getStorageUrl(cleanPath, 'product');
   };
 
   const handleAddToCart = () => {
