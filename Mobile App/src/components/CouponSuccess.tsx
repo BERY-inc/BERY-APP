@@ -34,35 +34,35 @@ export function CouponSuccess({ onBack, onNavigate, userId }: CouponSuccessProps
 
   // Activate coupon when component mounts
   useEffect(() => {
+    const activateCoupon = async (link: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const result = await pauketService.activateCoupon(link, userId);
+        setCoupons(result.coupons);
+        setMerchantLogo(result.merchantLogo);
+        setOffer(result.offer);
+        setRedirectUrl(result.redirectUrl);
+        setCouponCode(result.couponCode);
+        setIsCTAValid(result.isCTAValid);
+        setCtaName(result.CTAName);
+        setCtaRedirect(result.CTARedirect);
+      } catch (err) {
+        console.error("Failed to activate coupon:", err);
+        setError("Failed to activate coupon. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (sourceLink) {
       activateCoupon(sourceLink);
     } else {
       setError("No coupon specified");
       setLoading(false);
     }
-  }, [sourceLink]);
-
-  const activateCoupon = async (link: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const result = await pauketService.activateCoupon(link, userId);
-      setCoupons(result.coupons);
-      setMerchantLogo(result.merchantLogo);
-      setOffer(result.offer);
-      setRedirectUrl(result.redirectUrl);
-      setCouponCode(result.couponCode);
-      setIsCTAValid(result.isCTAValid);
-      setCtaName(result.CTAName);
-      setCtaRedirect(result.CTARedirect);
-    } catch (err) {
-      console.error("Failed to activate coupon:", err);
-      setError("Failed to activate coupon. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [sourceLink, userId]);
 
   const handleCopyCode = () => {
     if (couponCode) {

@@ -23,12 +23,7 @@ export function MyCoupons({ onBack, onNavigate, userId }: MyCouponsProps) {
   const [totalPages, setTotalPages] = useState(0);
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
 
-  // Fetch coupons when component mounts or when filters change
-  useEffect(() => {
-    fetchCoupons();
-  }, [activeFilter, currentPage]);
-
-  const fetchCoupons = async () => {
+  const fetchCoupons = React.useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -48,7 +43,12 @@ export function MyCoupons({ onBack, onNavigate, userId }: MyCouponsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, activeFilter, currentPage]);
+
+  // Fetch coupons when component mounts or when filters change
+  useEffect(() => {
+    fetchCoupons();
+  }, [fetchCoupons]);
 
   const handleCopyCode = (code: string, couponId: string) => {
     navigator.clipboard.writeText(code);

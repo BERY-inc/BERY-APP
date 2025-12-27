@@ -694,7 +694,7 @@ export function OrderTrackingScreen({ onBack }: ScreenProps) {
     const stored = localStorage.getItem('selectedOrderId') ?? '';
     if (stored && stored !== orderId) setOrderId(stored);
     fetchTracking(stored || orderId);
-  }, []);
+  }, [fetchTracking, orderId]);
 
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">

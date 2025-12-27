@@ -2396,7 +2396,7 @@ export function GlobalSearchScreen({ onBack }: ScreenProps) {
   const [loading, setLoading] = React.useState(false);
 
   // Search function
-  const handleSearch = async () => {
+  const handleSearch = React.useCallback(async () => {
     if (!searchQuery.trim()) return;
 
     try {
@@ -2409,7 +2409,7 @@ export function GlobalSearchScreen({ onBack }: ScreenProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery]);
 
   // Trigger search when query changes (with debounce)
   React.useEffect(() => {
@@ -2422,7 +2422,7 @@ export function GlobalSearchScreen({ onBack }: ScreenProps) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, handleSearch]);
 
   return (
     <div className="h-screen overflow-y-auto bg-[#0a0a1a] pb-24">
@@ -2807,7 +2807,7 @@ export function PaymentScreen({ onBack, onNavigate }: ScreenProps) {
   React.useEffect(() => {
     const nextOrderId = (localStorage.getItem('selectedOrderId') ?? '').toString();
     if (nextOrderId && nextOrderId !== orderId) setOrderId(nextOrderId);
-  }, []);
+  }, [orderId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -2849,7 +2849,7 @@ export function PaymentScreen({ onBack, onNavigate }: ScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [orderId]);
+  }, [orderId, paymentMethod, paymentUrl]);
 
   React.useEffect(() => {
     if (paymentMethod !== 'digital_payment') return;
@@ -3447,7 +3447,7 @@ export function AddressScreen({ onBack, onNavigate }: ScreenProps) {
 
   React.useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   const onAdd = () => {
     try { localStorage.removeItem('editingAddressId'); } catch {}
@@ -3578,7 +3578,7 @@ export function AddAddressScreen({ onBack, onNavigate }: ScreenProps) {
         setAddress(String(found.address ?? ''));
         setLatitude(String(found.latitude ?? ''));
         setLongitude(String(found.longitude ?? ''));
-        setZoneId(Number(found.zone_id ?? zoneId) || zoneId);
+        setZoneId(prev => Number(found.zone_id ?? prev) || prev);
       } catch {
       } finally {
         if (!cancelled) setLoading(false);

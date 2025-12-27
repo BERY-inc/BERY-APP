@@ -33,7 +33,7 @@
             "@radix-ui/react-toggle-group": "^1.1.2",
             "@radix-ui/react-tooltip": "^1.1.8",
             "@react-google-maps/api": "^2.20.7",
-            "axios": "^1.13.2",
+            "@supabase/supabase-js": "^2.56.0",
             "class-variance-authority": "^0.7.1",
             "clsx": "*",
             "cmdk": "^1.1.1",
@@ -54,8 +54,7 @@
             "sonner": "^2.0.3",
             "tailwind-merge": "*",
             "vaul": "^1.1.2",
-            "ws": "^8.18.3",
-            "@supabase/supabase-js": "^2.56.0"
+            "ws": "^8.18.3"
       },
       "devDependencies": {
             "@capacitor/android": "^7.4.4",
@@ -70,8 +69,8 @@
             "eslint": "^9.17.0",
             "eslint-plugin-react-hooks": "^5.1.0",
             "globals": "^15.14.0",
-            "typescript-eslint": "^8.19.1",
             "typescript": "^5.9.3",
+            "typescript-eslint": "^8.19.1",
             "vite": "6.3.5"
       },
       "scripts": {

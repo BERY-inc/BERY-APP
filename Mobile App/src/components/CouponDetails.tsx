@@ -25,28 +25,28 @@ export function CouponDetails({ onBack, onNavigate, userId }: CouponDetailsProps
 
   // Fetch campaign details when component mounts
   useEffect(() => {
+    const fetchCampaignDetails = async (link: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const details = await pauketService.getCampaignDetails(link, userId);
+        setCampaign(details);
+      } catch (err) {
+        console.error("Failed to fetch campaign details:", err);
+        setError("Failed to load campaign details. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (sourceLink) {
       fetchCampaignDetails(sourceLink);
     } else {
       setError("No campaign specified");
       setLoading(false);
     }
-  }, [sourceLink]);
-
-  const fetchCampaignDetails = async (link: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const details = await pauketService.getCampaignDetails(link, userId);
-      setCampaign(details);
-    } catch (err) {
-      console.error("Failed to fetch campaign details:", err);
-      setError("Failed to load campaign details. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [sourceLink, userId]);
 
   const handleActivateCoupon = async () => {
     if (!sourceLink) return;

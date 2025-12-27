@@ -101,27 +101,63 @@ class CustomerService {
     const user = userData.user;
     if (!user) throw new Error('Not authenticated');
 
-    const email = String(data.email || '').trim();
-    const firstName = String(data.f_name || '').trim();
-    const lastName = String(data.l_name || '').trim();
-    const now = new Date().toISOString();
+    // 1. Upload image if present
+    let avatarUrl = undefined;
+    if (data.image) {
+      const file = data.image;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
 
-    const profileUpdate: any = {
-      first_name: firstName,
-      last_name: lastName,
-      email: email || user.email,
-      updated_at: now,
-    };
+      const { error: uploadError } = await supabase.storage
+        .from('profile')
+        .upload(filePath, file);
 
-    const upd = await supabase.from('profiles').update(profileUpdate).eq('user_id', user.id);
-    if (upd.error) throw new Error(upd.error.message);
-
-    if (email && email !== user.email) {
-      const au = await supabase.auth.updateUser({ email });
-      if (au.error) throw new Error(au.error.message);
+      if (uploadError) throw new Error(uploadError.message);
+      avatarUrl = filePath;
     }
 
-    return { updated: true };
+    // 2. Update profiles table
+    const updates: any = {
+      first_name: data.f_name,
+      last_name: data.l_name,
+      updated_at: new Date().toISOString(),
+    };
+    if (avatarUrl) updates.avatar_url = avatarUrl;
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', user.id);
+
+    if (profileError) throw new Error(profileError.message);
+
+    // 3. Update auth metadata (optional but good for syncing)
+    const metaUpdates: any = {
+      first_name: data.f_name,
+      last_name: data.l_name,
+    };
+    if (avatarUrl) metaUpdates.avatar_url = avatarUrl;
+    
+    await supabase.auth.updateUser({ data: metaUpdates });
+
+    return { status: true, message: 'Profile updated successfully' };
+  }
+
+  // Update user preferences
+  async updatePreferences(preferences: any): Promise<void> {
+    if (!isSupabaseConfigured || !supabase) return;
+    const { error } = await supabase.auth.updateUser({
+      data: { preferences }
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  // Get user preferences
+  async getPreferences(): Promise<any> {
+    if (!isSupabaseConfigured || !supabase) return {};
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.user_metadata?.preferences || {};
   }
 
   // Get address list

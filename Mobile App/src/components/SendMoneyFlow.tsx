@@ -33,35 +33,27 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
 
   const progress = (step / 3) * 100;
 
-  useEffect(() => {
-    if (typeof initialRecipient === 'string' && initialRecipient.length > 0) {
-      setRecipient(initialRecipient);
-      if (autoVerify) {
-        handleCheckUser();
-      }
-    }
-  }, [initialRecipient, autoVerify]);
-
-  const handleCheckUser = async () => {
-    if (!recipient) return null;
+  const handleCheckUser = React.useCallback(async (recipientOverride?: string) => {
+    const target = recipientOverride ?? recipient;
+    if (!target) return null;
     setCheckingUser(true);
     setVerifiedUser(null);
     setVerificationError(false);
     setManualEntryMode(false);
 
     try {
-      const raw = await authService.checkUser(recipient);
+      const raw = await authService.checkUser(target);
       const src = raw?.data || raw?.user || raw;
       const first = (src?.f_name || src?.first_name || '').trim();
       const last = (src?.l_name || src?.last_name || '').trim();
-      const name = (src?.name || `${first} ${last}`.trim() || recipient).trim();
+      const name = (src?.name || `${first} ${last}`.trim() || target).trim();
       let image = src?.image;
       if (image && typeof image === 'string' && !image.startsWith('http')) {
         image = getStorageUrl(image, 'profile');
       }
       const normalized = {
         name,
-        phone: src?.phone || src?.email || recipient,
+        phone: src?.phone || src?.email || target,
         image
       };
       setVerifiedUser(normalized);
@@ -77,7 +69,16 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
     } finally {
       setCheckingUser(false);
     }
-  };
+  }, [recipient]);
+
+  useEffect(() => {
+    if (typeof initialRecipient === 'string' && initialRecipient.length > 0) {
+      setRecipient(initialRecipient);
+      if (autoVerify) {
+        handleCheckUser(initialRecipient);
+      }
+    }
+  }, [initialRecipient, autoVerify, handleCheckUser]);
 
   const handleNext = async () => {
     if (step === 1) {

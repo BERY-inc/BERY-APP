@@ -37,13 +37,13 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
   const [showZoneMap, setShowZoneMap] = useState(false);
 
   // Helper: set header to All Zones and clear local selection
-  const setAllZonesHeader = () => {
+  const setAllZonesHeader = React.useCallback(() => {
     if (zones.length > 0) {
       const zoneIds = zones.map(z => z.id);
       try { localStorage.setItem('zoneId', JSON.stringify(zoneIds)); } catch { }
       setSelectedZoneId(null);
     }
-  };
+  }, [zones]);
   // NEW: Store selection state
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(() => {
     const ls = localStorage.getItem('storeId');
@@ -258,7 +258,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
     };
 
     fetchData();
-  }, [selectedModuleId, zones]);
+  }, [selectedModuleId, zones, selectedCategory, selectedStoreId, setAllZonesHeader]);
 
   // State for fetched categories
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
@@ -364,7 +364,7 @@ export function Marketplace({ onBack, onNavigate, onProductClick, cartItemCount 
       }
     };
     refetchProducts();
-  }, [selectedStoreId, selectedCategory, selectedModuleId, categoryMap]);
+  }, [selectedStoreId, selectedCategory, selectedModuleId, categoryMap, zones.length, setAllZonesHeader]);
 
   const handleZoneChange = (id: number) => {
     setSelectedZoneId(id);

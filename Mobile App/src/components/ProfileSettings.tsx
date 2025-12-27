@@ -121,7 +121,32 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
       localStorage.setItem("profile_darkMode", String(darkMode));
       localStorage.setItem("profile_biometric", String(biometric));
     } catch {}
+
+    // Sync to Supabase (debounced)
+    const syncToSupabase = setTimeout(async () => {
+      if (!localStorage.getItem("authToken")) return;
+      try {
+        await customerService.updatePreferences({
+          notifications,
+          darkMode,
+          biometric
+        });
+      } catch (e) {
+        console.error("Failed to sync preferences", e);
+      }
+    }, 1000);
+
+    return () => clearTimeout(syncToSupabase);
   }, [notifications, darkMode, biometric]);
+
+  // Apply dark mode class
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,8 +157,21 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
 
       try {
         setLoadingProfile(true);
-        const profile = await authService.getProfile();
+        
+        // Load Profile & Preferences in parallel
+        const [profile, prefs] = await Promise.all([
+          authService.getProfile(),
+          customerService.getPreferences()
+        ]);
+
         if (cancelled) return;
+
+        // Apply preferences from cloud if available
+        if (prefs) {
+          if (prefs.notifications) setNotifications(prefs.notifications);
+          if (typeof prefs.darkMode === 'boolean') setDarkMode(prefs.darkMode);
+          if (typeof prefs.biometric === 'boolean') setBiometric(prefs.biometric);
+        }
 
         let imageUrl = profile.image;
         if (imageUrl && !imageUrl.startsWith("http")) {
@@ -179,7 +217,7 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onUserDataChange]);
 
   // Derived display values
   const effectiveUser = liveUserData ?? userData;

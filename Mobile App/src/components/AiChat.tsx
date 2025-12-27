@@ -48,6 +48,17 @@ interface WebSocketMessage {
   timestamp?: string;
 }
 
+// Initial AI Contact
+const aiContact: Contact = {
+  id: "bery-ai",
+  name: "Bery AI Assistant",
+  lastMessage: "I'm here to help with your finances!",
+  timestamp: "Now",
+  unread: 0,
+  isAI: true,
+  isOnline: true,
+};
+
 export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://localhost:8080" }: AiChatProps) {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,17 +71,6 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
-
-  // Initial AI Contact
-  const aiContact: Contact = {
-    id: "bery-ai",
-    name: "Bery AI Assistant",
-    lastMessage: "I'm here to help with your finances!",
-    timestamp: "Now",
-    unread: 0,
-    isAI: true,
-    isOnline: true,
-  };
 
   const [messages, setMessages] = useState<{ [contactId: string]: Message[] }>({
     "bery-ai": [
@@ -114,15 +114,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
     }
   };
 
-  // Fetch conversations on mount
-  useEffect(() => {
-    fetchConversations();
-    // Set up polling for new conversations list every 30 seconds
-    const interval = setInterval(fetchConversations, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchConversations = async () => {
+  const fetchConversations = React.useCallback(async () => {
     try {
       setIsLoadingContacts(true);
       const data = await chatService.getConversations();
@@ -133,23 +125,6 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
         let receiverId = 0;
         let receiverType: 'admin' | 'vendor' | 'delivery_man' = 'admin'; // Default
 
-        // Determine remote party details
-        // If current user is sender, remote is receiver. If current user is receiver, remote is sender.
-        // However, the API returns 'sender' and 'receiver' objects.
-        // Usually the user ID matches one of them.
-        // For simplicity, we assume the 'receiver' or 'sender' object that is NOT the current user is the contact.
-        // But since we don't easily have current user ID here without authService, we can infer from structure or usage.
-        // In the backend controller, 'conversations' query checks where sender_id or receiver_id is current user.
-        
-        // Let's rely on checking if sender_type is 'customer' -> remote is receiver.
-        // If receiver_type is 'customer' -> remote is sender.
-        
-        // Wait, backend logic:
-        // $q->where(['sender_id' => $sender->id])->orWhere(['receiver_id' => $sender->id]);
-        
-        // We need to identify which one is the "other" person.
-        // Assuming the app is for 'customer'.
-        
         let remoteUser;
         if (conv.sender_type === 'customer') {
            remoteUser = conv.receiver;
@@ -193,32 +168,20 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
       console.error("Failed to fetch conversations", error);
       // Fallback to just AI contact on error
       setContacts([aiContact]);
-      // setConnectionError("Failed to load chats");
     } finally {
       setIsLoadingContacts(false);
     }
-  };
+  }, []);
 
-  // Poll for messages when a contact is selected
+  // Fetch conversations on mount
   useEffect(() => {
-    if (selectedContact && !selectedContact.isAI) {
-      fetchMessages(selectedContact);
-      
-      // Poll every 5 seconds for new messages
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = setInterval(() => {
-        fetchMessages(selectedContact, true); // silent update
-      }, 5000);
-    } else {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    }
+    fetchConversations();
+    // Set up polling for new conversations list every 30 seconds
+    const interval = setInterval(fetchConversations, 30000);
+    return () => clearInterval(interval);
+  }, [fetchConversations]);
 
-    return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    };
-  }, [selectedContact]);
-
-  const fetchMessages = async (contact: Contact, silent = false) => {
+  const fetchMessages = React.useCallback(async (contact: Contact, silent = false) => {
     try {
       if (!contact.conversationId && !contact.receiverId) return;
 
@@ -252,7 +215,26 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
       console.error("Error fetching messages", error);
       if (!silent) toast.error("Failed to load messages");
     }
-  };
+  }, []);
+
+  // Poll for messages when a contact is selected
+  useEffect(() => {
+    if (selectedContact && !selectedContact.isAI) {
+      fetchMessages(selectedContact);
+      
+      // Poll every 5 seconds for new messages
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = setInterval(() => {
+        fetchMessages(selectedContact, true); // silent update
+      }, 5000);
+    } else {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
+  }, [selectedContact, fetchMessages]);
 
   // WebSocket connection management (Keep existing for potential future use or AI)
   useEffect(() => {
@@ -271,7 +253,7 @@ export function AiChat({ onBack, onNavigate, cartItemCount = 0, wsUrl = "ws://lo
         URL.revokeObjectURL(previewUrl);
       }
     };
-  }, []);
+  }, [previewUrl]);
 
 
   const connectWebSocket = () => {

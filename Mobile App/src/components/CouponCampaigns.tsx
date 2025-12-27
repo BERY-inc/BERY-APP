@@ -30,31 +30,31 @@ export function CouponCampaigns({ onBack, onNavigate, userId }: CouponCampaignsP
 
   // Fetch campaigns when component mounts or when filters change
   useEffect(() => {
-    fetchCampaigns();
-  }, [categoryId, searchQuery, currentPage]);
+    const fetchCampaigns = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const { campaigns, totalCount, totalPages } = await pauketService.getCampaigns({
+          search: searchQuery || undefined,
+          categoryId,
+          custId: userId,
+          page: currentPage
+        });
+        
+        setCampaigns(campaigns);
+        setTotalCount(totalCount);
+        setTotalPages(totalPages);
+      } catch (err) {
+        console.error("Failed to fetch campaigns:", err);
+        setError("Failed to load campaigns. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const fetchCampaigns = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const { campaigns, totalCount, totalPages } = await pauketService.getCampaigns({
-        search: searchQuery || undefined,
-        categoryId,
-        custId: userId,
-        page: currentPage
-      });
-      
-      setCampaigns(campaigns);
-      setTotalCount(totalCount);
-      setTotalPages(totalPages);
-    } catch (err) {
-      console.error("Failed to fetch campaigns:", err);
-      setError("Failed to load campaigns. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchCampaigns();
+  }, [categoryId, searchQuery, currentPage, userId]);
 
   const handleCampaignClick = (sourceLink: string) => {
     // Navigate to campaign details screen

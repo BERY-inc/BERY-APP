@@ -347,6 +347,18 @@ export default function App() {
     });
   }, [currentScreen]); // Run when currentScreen changes (to redirect from splash/login if session exists)
 
+  // Apply dark mode on mount
+  useEffect(() => {
+    try {
+      const isDark = localStorage.getItem("profile_darkMode") === "true";
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch {}
+  }, []);
+
   const [orders, setOrders] = useState<MarketOrder[]>([]);
 
   // Shopping Cart State
