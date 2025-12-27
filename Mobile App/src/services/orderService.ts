@@ -119,10 +119,23 @@ class OrderService {
     if (!isSupabaseConfigured || !supabase) return false;
     const { userId, guestId } = await this.getAuthOwner();
     const now = new Date().toISOString();
+    
+    // Upload image if provided
+    let imageUrl = null;
+    if (image) {
+      try {
+        const fileExt = image.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `refund-images/${fileName}`;
+        const { error: uploadError } = await supabase.storage.from('refunds').upload(filePath, image);
+        if (!uploadError) imageUrl = filePath;
+      } catch {}
+    }
+
     const payload: any = {
       order_id: orderId,
       reason,
-      image: image ? 'uploaded' : null,
+      image: imageUrl,
       created_at: now,
       updated_at: now,
       user_id: userId,
@@ -130,6 +143,85 @@ class OrderService {
     };
     const res = await supabase.from('refund_requests').insert([payload]);
     if (res.error) throw new Error(res.error.message);
+    return true;
+  }
+
+  // Submit offline payment proof
+  async submitOfflinePayment(orderId: string, reference: string, note: string, receipt?: File): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) return false;
+    const { userId, guestId } = await this.getAuthOwner();
+    
+    // Upload receipt if provided
+    let receiptUrl = null;
+    if (receipt) {
+      try {
+        const fileExt = receipt.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `receipts/${fileName}`;
+        const { error: uploadError } = await supabase.storage.from('receipts').upload(filePath, receipt);
+        if (!uploadError) receiptUrl = filePath;
+      } catch {}
+    }
+
+    // Since we don't have an offline_payments table schema, we'll store it in order metadata or a separate table if it existed.
+    // For now, let's assume we update the order with payment info.
+    // In a real app, this should go to a dedicated table.
+    // We will update order_note to include this info for now as a fallback.
+    
+    const paymentInfo = `Offline Payment Ref: ${reference}. Note: ${note}. Receipt: ${receiptUrl || 'None'}`;
+    
+    const updateRes = await supabase
+      .from('orders')
+      .update({ 
+        order_note: paymentInfo, // Appending would be better but this is simple
+        payment_status: 'review', // distinctive status
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId);
+
+    if (updateRes.error) throw new Error(updateRes.error.message);
+    return true;
+  }
+
+  // Pay with wallet
+  async payWithWallet(orderId: string, amount: number): Promise<boolean> {
+    if (!isSupabaseConfigured || !supabase) throw new Error('Supabase is not configured');
+    const { userId } = await this.getAuthOwner();
+    if (!userId) throw new Error('User not logged in');
+
+    // 1. Get profile balance
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('wallet_balance')
+      .eq('id', userId)
+      .single();
+    
+    if (profileError || !profile) throw new Error('Could not fetch wallet balance');
+    
+    const balance = Number(profile.wallet_balance) || 0;
+    if (balance < amount) throw new Error('Insufficient wallet balance');
+
+    // 2. Deduct balance
+    const newBalance = balance - amount;
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ wallet_balance: newBalance })
+      .eq('id', userId);
+
+    if (updateError) throw new Error('Failed to update wallet balance');
+
+    // 3. Update order status
+    const { error: orderError } = await supabase
+      .from('orders')
+      .update({ 
+        payment_status: 'paid',
+        payment_method: 'wallet',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId);
+
+    if (orderError) throw new Error('Failed to update order status');
+
     return true;
   }
 

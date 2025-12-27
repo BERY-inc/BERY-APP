@@ -2802,6 +2802,7 @@ export function PaymentScreen({ onBack, onNavigate }: ScreenProps) {
   const [paymentUrl, setPaymentUrl] = React.useState(() => localStorage.getItem('paymentWebviewUrl') ?? '');
   const [order, setOrder] = React.useState<any>(null);
   const [loadingOrder, setLoadingOrder] = React.useState(false);
+  const [processing, setProcessing] = React.useState(false);
 
   React.useEffect(() => {
     const nextOrderId = (localStorage.getItem('selectedOrderId') ?? '').toString();
@@ -2864,8 +2865,30 @@ export function PaymentScreen({ onBack, onNavigate }: ScreenProps) {
     try { localStorage.setItem('selectedOrderId', orderId.trim()); } catch {}
   };
 
-  const proceed = () => {
+  const proceed = async () => {
     persist();
+    
+    if (!order) {
+        toast.error("Order details not found");
+        return;
+    }
+
+    if (paymentMethod === 'wallet') {
+        try {
+            setProcessing(true);
+            const amount = Number(order.order_amount) || 0;
+            await orderService.payWithWallet(order.id, amount);
+            toast.success("Payment successful", { description: `Paid $${amount.toFixed(2)} from wallet.` });
+            onNavigate('orders');
+        } catch (e: any) {
+            console.error('Wallet payment failed:', e);
+            toast.error("Payment failed", { description: e.message || "Insufficient balance or error." });
+        } finally {
+            setProcessing(false);
+        }
+        return;
+    }
+
     if (paymentMethod === 'digital_payment') {
       const fallbackUrl =
         (order as any)?.payment_url ??
