@@ -359,15 +359,20 @@ class AuthService {
   // Logout
   async logout(): Promise<void> {
     if (!isSupabaseConfigured || !supabase) return;
-    await supabase.auth.signOut();
     try {
-      localStorage.removeItem('authToken');
-    } catch {}
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Logout error:', e);
+    } finally {
+      try {
+        localStorage.removeItem('authToken');
+      } catch {}
+    }
   }
 
   // Check if user is authenticated
   isAuthenticated(): boolean {
-    return false;
+    return this.hasMarketToken();
   }
 }
 
