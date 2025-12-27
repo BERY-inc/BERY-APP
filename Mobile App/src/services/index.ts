@@ -1,5 +1,4 @@
 // Export all services for 6amMart user app integration
-
 export { default as authService } from './authService';
 export { default as customerService } from './customerService';
 export { default as storeService } from './storeService';

@@ -43,6 +43,7 @@ const ErrorScreen = lazy(() =>
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import authService from "./services/authService";
+import { getStorageUrl } from "./services/supabaseClient";
 import orderService from "./services/orderService";
 import itemService from "./services/itemService";
 import customerService from "./services/customerService";
@@ -266,7 +267,7 @@ export default function App() {
 
       let imageUrl = profile.image;
       if (imageUrl && !imageUrl.startsWith('http')) {
-        imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+        imageUrl = getStorageUrl(imageUrl, 'profile');
       }
 
       setUserData({
@@ -1160,7 +1161,7 @@ export default function App() {
           if (!warned) {
             localStorage.setItem('guest_checkout_warned', 'true');
             toast.info("Guest checkout", {
-              description: "Login to see these orders in your market.bery.in account dashboard.",
+              description: "Login to see these orders in your account dashboard.",
             });
           }
         } catch {}

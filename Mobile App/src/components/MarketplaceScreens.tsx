@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import * as React from "react";
 import { ArrowLeft, Search, Store, Package, MapPin, CreditCard, Wallet, Globe, Star, ShoppingCart, Heart, SlidersHorizontal, Zap, Clock, Shield, Crown, Share2, Grid3x3, List, Flame, TrendingUp, Sparkles, Check, Truck, User, Image as ImageIcon, X, HelpCircle, Copy } from "lucide-react";
 import { storeService, itemService, wishlistService, orderService, metadataService, customerService, authService } from '../services';
+import { getStorageUrl } from '../services/supabaseClient';
 import { toast } from "sonner";
 
 interface ScreenProps {
@@ -132,7 +133,7 @@ export function StoreScreen({ onBack, onNavigate }: ScreenProps) {
           description: store.address || 'Popular store',
           rating: store.avg_rating || 4.5,
           reviews: store.rating_count || 100,
-          image: store.logo ? `/${store.logo}` : '🏪',
+          image: store.logo ? getStorageUrl(store.logo, 'store') : '🏪',
           verified: store.approved === 1,
           badge: store.featured === 1 ? 'Featured' : store.rating_count > 1000 ? 'Top Rated' : 'New',
           products: `${store.items_count || 0} items`

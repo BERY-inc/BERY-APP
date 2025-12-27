@@ -23,6 +23,7 @@ import { motion } from "motion/react";
 import { BottomNavigation } from "./BottomNavigation";
 import { toast } from "sonner";
 import { authService, customerService } from "../services";
+import { getStorageUrl } from "../services/supabaseClient";
 
 interface UserData {
   firstName?: string;
@@ -136,7 +137,7 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
 
         let imageUrl = profile.image;
         if (imageUrl && !imageUrl.startsWith("http")) {
-          imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+          imageUrl = getStorageUrl(imageUrl, 'profile');
         }
 
         const createdAt = profile.created_at ? new Date(profile.created_at) : null;
@@ -235,7 +236,7 @@ export function ProfileSettings({ onBack, onNavigate, onLogout, cartItemCount = 
       const profile = await authService.getProfile();
       let imageUrl = profile.image;
       if (imageUrl && !imageUrl.startsWith("http")) {
-        imageUrl = `https://market.bery.in/storage/app/public/profile/${imageUrl}`;
+        imageUrl = getStorageUrl(imageUrl, 'profile');
       }
 
       const createdAt = profile.created_at ? new Date(profile.created_at) : null;

@@ -16,3 +16,15 @@ if (isDev && resolvedKey && !rawUrl) {
 }
 
 export const supabase = isSupabaseConfigured ? createClient(rawUrl, resolvedKey) : null;
+
+export const getStorageUrl = (path: string | undefined | null, bucket: 'profile' | 'product' | 'store' | 'banner' | 'category'): string => {
+  if (!path || !isSupabaseConfigured || !supabase) return '';
+  if (path.startsWith('http')) return path;
+  
+  // Clean path - remove leading slashes
+  const cleanPath = path.replace(/^\/+/, '');
+  
+  // Get public URL
+  const { data } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
+  return data.publicUrl;
+};

@@ -10,6 +10,7 @@ import { ArrowLeft, Search, Check, Lock, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { Haptics, NotificationType } from "@capacitor/haptics";
 import authService from "../services/authService";
+import { getStorageUrl } from "../services/supabaseClient";
 import { toast } from "sonner";
 
 interface SendMoneyFlowProps {
@@ -56,7 +57,7 @@ export function SendMoneyFlow({ onBack, onComplete, initialRecipient, autoVerify
       const name = (src?.name || `${first} ${last}`.trim() || recipient).trim();
       let image = src?.image;
       if (image && typeof image === 'string' && !image.startsWith('http')) {
-        image = `https://market.bery.in/storage/app/public/profile/${image}`;
+        image = getStorageUrl(image, 'profile');
       }
       const normalized = {
         name,
